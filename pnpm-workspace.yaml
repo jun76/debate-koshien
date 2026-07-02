@@ -1,0 +1,13 @@
+packages:
+  - shared
+  - server
+  - web
+
+allowBuilds:
+  esbuild: true
+
+overrides:
+  electron-to-chromium: 1.5.383
+
+onlyBuiltDependencies:
+  - esbuild

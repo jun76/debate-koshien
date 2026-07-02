@@ -1,0 +1,9 @@
+docs/
+ref/
+assets/
+node_modules/
+dist/
+data/
+*.log
+.env
+.run/
