@@ -1,176 +1,164 @@
-# AI Debate Koshien — Coding Agents Face Off
+# AIディベート甲子園
 
-![AI Debate Koshien](media/banner.png)
+![AIディベート甲子園](media/banner.png)
 
-**English** | [日本語](README-ja.md)
+[English](README-en.md) | **日本語**
 
-A local web app where AI coding agents (Claude Code / Codex / OpenCode / Mock) debate a
-resolution you type in. Two teams (A and B) prepare and argue; an odd number of judge
-agents score the match and decide the winner by majority vote. The rules follow Japan's
-National Middle/High School Debate Championship ("Debate Koshien"), adapted for agents and
-run in turn-based mode (character limits instead of speech timers).
+ユーザーが入力した論題について、AチームとBチームに割り当てられた AI コーディングエージェント
+（Claude Code / Codex / OpenCode / Mock）が準備・討論し、奇数人の審査員エージェントが多数決で
+判定するローカル Web アプリ。ルールは全国中学・高校ディベート選手権（ディベート甲子園）に準拠し、
+エージェント向けに調整したうえでターン制（発言時間の代わりに文字数上限）で進行する。
 
-It is not a chatbot chat — it is a local evaluation arena for observing research ability,
-evidence handling, rebuttal, comparative weighing, and judging.
+単なるチャットボット対戦ではなく、調査力・証拠運用・反論・比較衡量・審査を観察できるローカル評価基盤。
 
-## Features
+## 特徴
 
-- **Japanese / English** toggle on the setup screen switches the whole experience — UI, the
-  debate/judge/review prompts, and TTS. The language is saved in the browser (default Japanese)
-  and baked into each match at creation, so replays stay consistent.
-- **Preparation phase** allows web research; each team independently builds a handout
-  (`handout.md` + `evidence.json`).
-- At the end of prep the material is **sealed**: per-file SHA-256 plus a root hash are shown,
-  and the seal is re-verified at debate start and at judging start to detect tampering.
-- During the debate, **web access is blocked by execution permission, not by prompt**
-  (claude: `--disallowedTools`, codex: sandbox network policy, opencode: permission config).
-- Citation markers like `[A-01]` are extracted from each speech; unknown IDs, over-length
-  speeches, and any web-tool usage are surfaced as **formal-check warnings**.
-- Judges vote **independently** (structured JSON output) and the winner is decided by
-  **majority vote**; each judge's reasoning is viewable in the UI.
-- After the match a commentator agent produces a **post-match review** (decisive issues,
-  evidence assessment, team-operation comparison, improvement points).
-- Speakers are shown as PuruPuru-PNGTuber-style avatars (blink, lip-sync, breathing); if no
-  avatar assets are installed, built-in SVG characters are used instead.
-- Optional **text-to-speech** via piper-plus + Tsukuyomi-chan, synced with the typewriter text.
-- **Demo mode**: run all inference and audio synthesis up front, then watch the whole match
-  with no generation waits. Finished matches can be replayed the same way at any time.
+- 設定画面の **日本語 / 英語トグル**で、UI・ディベート/審査/講評のプロンプト・TTS まで含めて
+  全体を切り替えられる。言語はブラウザに保存され（既定は日本語）、試合ごとに固定されるので
+  リプレイでも一貫する。
+- **準備フェーズ**でのみ Web 調査を許可し、各チームが独立にハンドアウト
+  （`handout.md` + `evidence.json`）を作成する。
+- 準備終了時に資料を**封印**し、ファイル別 SHA-256 とルートハッシュを表示。試合開始時と審査開始時に
+  再検証して改ざんを検出する。
+- ディベート本編では **Web 禁止をプロンプトではなく実行権限で強制**する
+  （claude: `--disallowedTools` / codex: サンドボックスのネットワークポリシー / opencode: permission 設定）。
+- 発言の証拠参照 `[A-01]` を機械抽出し、存在しない ID・文字数超過・Web ツール使用を
+  **形式チェックの警告**として提示する。
+- 審査員は**独立に**判定し（JSON 構造化出力）、**多数決**で勝敗を決める。判定理由は UI で閲覧できる。
+- 試合後に解説エージェントが**感想戦レビュー**（決定打・証拠評価・チーム運用方式の比較・改善点）を生成する。
+- 話者は PuruPuru PNGTuber 形式のアバターで表示（まばたき・口パク・呼吸）。アバター素材が
+  無い場合は内蔵の SVG キャラクターで表示する。
+- オプションで piper-plus + つくよみちゃんによる**音声読み上げ**（タイプライター表示と同期）。
+- **デモモード**: 全推論と音声合成を先に済ませてから、生成待ちなしで1試合を通しで観戦できる。
+  終了済みの試合も同じ演出でいつでもリプレイ可能。
 
-## Requirements
+## 必要環境
 
-- Node.js 22+ and pnpm
-- For real agents: the `claude` (Claude Code), `codex` (Codex CLI), and/or `opencode`
-  (OpenCode) CLIs installed and authenticated
-- Optional avatars: assets placed under `assets/avatars/` (PuruPuru PNGTuber folder format);
-  without them, built-in SVG fallback characters are shown
-- Optional TTS: PowerShell (Windows) to run the setup script; works without it (silent mode).
-  `scripts/setup-tts.ps1` provisions a Japanese voice (Tsukuyomi-chan) under
-  `assets/tts/models/ja/` and an English voice under `assets/tts/models/en/`; the server picks
-  the voice by the match's language, and any language without a model simply plays silently.
+- Node.js 22+ と pnpm
+- 実エージェントを使う場合: `claude`（Claude Code）/ `codex`（Codex CLI）/ `opencode`（OpenCode）の
+  各 CLI をインストール・認証済みにしておく
+- 任意のアバター素材: `assets/avatars/`（PuruPuru PNGTuber のフォルダ形式）に配置。
+  無い場合は内蔵の SVG フォールバックキャラクターで表示される
+- 任意の TTS: セットアップスクリプトの実行に PowerShell（Windows）。無くても動作する（音声なし）。
+  `scripts/setup-tts.ps1` は日本語音声（つくよみちゃん）を `assets/tts/models/ja/` に、英語音声を
+  `assets/tts/models/en/` に配置する。サーバは試合の言語に応じて音声を選び、モデルが無い言語は
+  そのまま無音で進行する。
 
-### How the agent CLIs are used
+### エージェント CLI の利用形態
 
-Clone this repository onto the machine where you normally run `claude` / `codex` /
-`opencode` from a terminal. The server does not call any LLM API directly — for every
-speech, prep step, and verdict it spawns the selected CLI as a local subprocess (headless,
-one shot per invocation) inside a per-match workspace. That means:
+このリポジトリは、普段ターミナルで `claude` / `codex` / `opencode` を起動しているマシンに
+クローンして使う想定。サーバは LLM API を直接呼ばず、発言・準備・判定のたびに選択された CLI を
+試合ごとのワークスペース内でローカルのサブプロセスとして起動する（headless・1回ずつの単発実行）。
+つまり:
 
-- Each CLI you select in the match settings must be launchable from your shell (on `PATH`)
-  and already logged in / authenticated on this machine.
-- Usage is billed to whatever plan or API key each CLI is configured with, per member,
-  judge, and reviewer invocation.
-- The `Mock` provider needs no CLI at all and is the best way to try the app first.
+- 試合設定で選ぶ CLI は、このマシンのシェルから起動できて（`PATH` が通っていて）ログイン・認証済み
+  である必要がある。
+- 利用料金は各 CLI に設定されたプラン/API キーに対して、メンバー・審査員・解説の呼び出し単位で発生する。
+- `Mock` プロバイダは CLI 不要。まず試すにはこれが最適。
 
-## Setup
+## セットアップ
 
 ```powershell
 pnpm install
 
-# Optional: download piper-plus + the Tsukuyomi-chan voice into assets/tts/
-# (the app runs fine without this — audio is simply disabled)
+# 任意: piper-plus + つくよみちゃん音声を assets/tts/ に取得
+# （無くても音声なしで動作する）
 .\scripts\setup-tts.ps1
 ```
 
-## Start / Stop
+## 起動 / 終了
 
-On Windows:
+Windows:
 
 ```powershell
-.\scripts\start.ps1     # or: pnpm start
-.\scripts\stop.ps1      # or: pnpm stop
+.\scripts\start.ps1     # または: pnpm start
+.\scripts\stop.ps1      # または: pnpm stop
 ```
 
-On macOS / Linux:
+macOS / Linux:
 
 ```bash
 ./scripts/start.sh
 ./scripts/stop.sh
 ```
 
-`start` launches the API server (http://127.0.0.1:8787) and the web UI
-(http://localhost:56173) in the background, writing logs and PIDs under `.run/`.
-Then open **http://localhost:56173**.
+`start` は API サーバ（http://127.0.0.1:8787）と Web UI（http://localhost:56173）を
+バックグラウンドで起動し、ログと PID を `.run/` に書き出す。起動後
+**http://localhost:56173** を開く。
 
-## Usage
+## 使い方
 
-1. **Setup screen** — pick the language (JA / EN toggle, top right), enter a resolution,
-   configure each team (provider, model, reasoning mode, member count, council / role-division
-   mode, captain, avatar) and the judges (1 / 3 / 5), then start the match.
-2. **Arena screen** — watch live: preparation → seal (hash shown) → the eight speech parts →
-   judging. Click a citation chip in the speech log to jump to that evidence entry.
-3. **Result screen** — winner, each judge's vote and reasoning, and the post-match review.
+1. **設定画面** — 言語（右上の日本語/英語トグル）を選び、論題を入力し、各チーム（プロバイダ、
+   モデル、推論モード、人数、合議制/役割分担制、captain、アバター）と審査員（1/3/5人）を設定して
+   試合を開始する。
+2. **アリーナ画面** — 準備 → 封印（ハッシュ表示）→ 8パートの討論 → 審査、をリアルタイム観戦。
+   発言ログの証拠チップをクリックすると該当する証拠エントリへジャンプする。
+3. **結果画面** — 勝敗、審査員ごとの投票と理由、感想戦レビュー。
 
-Tip: run everything with the `Mock` provider on the quick format first to see the whole flow
-end to end (finishes in about 30 seconds, no CLI or API cost).
+まずは全員 `Mock` プロバイダ + クイックフォーマットで流れを確認するのがおすすめ
+（30秒程度で完走し、CLI や API のコストもかからない）。
 
-## Project layout
+## 構成
 
 ```
-shared/   Types, format definitions, citation extraction
-server/   Hono API + SSE, match runner, agent adapters, sealing/hashing, TTS
-web/      React SPA (paper-craft UI; swappable via assets/ui/*.png)
-assets/   Avatars, TTS, UI images (git-ignored; provisioned by scripts/)
-data/     Per-match artifacts (config, handouts, seals, logs, audio, verdicts, review)
+shared/   型定義、フォーマット定義、証拠参照の抽出
+server/   Hono API + SSE、試合ランナー、エージェントアダプタ、封印/ハッシュ、TTS
+web/      React SPA（ペーパークラフト調 UI。assets/ui/*.png で差し替え可能）
+assets/   アバター・TTS・UI 画像（Git 管理外。scripts/ で整備）
+data/     試合ごとの成果物（設定・ハンドアウト・封印・ログ・音声・判定・レビュー）
 ```
 
-## UI assets (paper-craft theme)
+## UI アセット
 
-The UI is designed around paper-craft artwork. Every graphic loads from
-`assets/ui/<slot>.png`; if the file is missing, an inline SVG fallback is drawn in the same
-spot. So you can generate images and drop them into `assets/ui/` to restyle the app with no
-code changes. Add a new slot by placing an `<Art name="..." fallback={...} />` in
-`web/src/art/`.
+すべての絵は `assets/ui/<スロット名>.png` から読み込まれ、ファイルが無ければ同じ位置に SVG フォールバックが
+描画される。新しいスロットは `web/src/art/` に `<Art name="..." fallback={...} />` を置けば追加できる。
 
-Current slots (all transparent PNG, ~2× display size recommended):
+現在のスロット（すべて透過 PNG、表示領域の 2 倍程度を推奨）:
 
-| Slot                                  | Content                                            |
-| ------------------------------------- | -------------------------------------------------- |
-| `stage-backdrop`                      | Stage background (paper sky, distant town, floor)  |
-| `curtain-left` / `curtain-right`      | Stage curtains                                     |
-| `bunting`                             | Triangle-flag garland                              |
-| `vs-medallion`                        | Hanging "VS" medallion                             |
-| `topic-board`                         | Board that shows the resolution (no text baked in) |
-| `podium-aff` / `podium-neg`           | Podiums (green / red)                              |
-| `nameplate`                           | Speaker nameplate (no text baked in)               |
-| `mic`                                 | Paper microphone                                   |
-| `speech-sign-aff` / `speech-sign-neg` | Speech-bubble signs (no text baked in)             |
-| `audience`                            | Row of audience silhouettes                        |
-| `tree-1` / `tree-2`                   | Decorative paper trees                             |
-| `prep-envelope-aff` / `prep-envelope-neg` | Sealed prep envelopes                         |
-| `magnifier`                           | Magnifier (research animation)                     |
-| `seal-stamp`                          | "Sealed" stamp                                     |
-| `gavel`                               | Judge's gavel                                      |
-| `trophy`                              | Winner trophy                                      |
-| `confetti`                            | Confetti                                           |
+| スロット                                  | 内容                                       |
+| ----------------------------------------- | ------------------------------------------ |
+| `stage-backdrop`                          | ステージ背景（紙の空、遠景の街、床）       |
+| `curtain-left` / `curtain-right`          | 舞台幕                                     |
+| `bunting`                                 | 三角旗のガーランド                         |
+| `vs-medallion`                            | 吊り下げの「VS」メダリオン                 |
+| `topic-board`                             | 論題を表示する掲示板（文字は焼き込まない） |
+| `podium-aff` / `podium-neg`               | 演台（緑 / 赤）                            |
+| `nameplate`                               | 話者のネームプレート（文字は焼き込まない） |
+| `mic`                                     | 紙のマイク                                 |
+| `speech-sign-aff` / `speech-sign-neg`     | 吹き出し看板（文字は焼き込まない）         |
+| `audience`                                | 観客席のシルエット一列                     |
+| `tree-1` / `tree-2`                       | 装飾の紙の木                               |
+| `prep-envelope-aff` / `prep-envelope-neg` | 封印付き準備封筒                           |
+| `magnifier`                               | 虫めがね（調査中の演出）                   |
+| `seal-stamp`                              | 「封印」スタンプ                           |
+| `gavel`                                   | 審査の木槌                                 |
+| `trophy`                                  | 優勝トロフィー                             |
+| `confetti`                                | 紙吹雪                                     |
 
-## Testing
+## テスト
 
 ```powershell
-pnpm test        # server unit tests (sealing/hashing, formal checks)
-pnpm typecheck   # type-check all packages
-pnpm --filter @debate/server exec tsx scripts/smoke.ts   # real CLI adapter reachability
+pnpm test        # サーバの単体テスト（封印/ハッシュ、形式チェック）
+pnpm typecheck   # 全パッケージの型チェック
+pnpm --filter @debate/server exec tsx scripts/smoke.ts   # 実 CLI アダプタの疎通確認
 ```
 
-## Notes
+## 注意点
 
-- Codex runs with the user's `~/.codex/config.toml` ignored (its MCP servers can block on
-  auth in headless mode and stall the match). Pass model and reasoning mode explicitly in the
-  match settings.
-- Avatar images and the Tsukuyomi-chan voice you provision locally have their own licenses /
-  usage terms. Local use is fine, but check them before publishing recordings.
+- codex はユーザーの `~/.codex/config.toml` を読まずに実行する（MCP サーバが headless 実行で
+  認証待ちになり試合が止まるため）。モデルと推論モードは試合設定で明示すること。
+- ローカルに配置したアバター画像・つくよみちゃん音声には各ライセンス/利用規約がある。ローカル利用は
+  問題ないが、録画を公開する前に確認すること。
 
-## License & credits
+## ライセンスとクレジット
 
-The application code is MIT licensed (see [LICENSE](LICENSE)). Avatar images and voice models
-are **not** covered by the MIT license and are governed by their own terms (see the notices
-shipped alongside those assets).
+アプリケーションコードは MIT（[LICENSE](LICENSE) 参照）。アバター画像と音声モデルは MIT の対象外で、
+それぞれの規約に従う（各アセットに同梱された告知を参照）。
 
-This project builds on:
+本プロジェクトは以下を利用している:
 
-- [PuruPuruPNGTuber](https://github.com/rotejin/PuruPuruPNGTuber) (Apache-2.0) — the avatar
-  folder format and rendering behavior (blink / lip-sync / breathing) follow this project.
-  Its demo avatar assets are governed by their own asset license (see `ASSET_LICENSE.md` in
-  that repository).
-- [piper-plus](https://github.com/ayutaz/piper-plus) (MIT) — the text-to-speech engine
-  downloaded by `scripts/setup-tts.ps1`. The Tsukuyomi-chan voice model it fetches has its
-  own usage terms.
+- [PuruPuruPNGTuber](https://github.com/rotejin/PuruPuruPNGTuber)（Apache-2.0）—
+  アバターのフォルダ形式と表示挙動（まばたき・口パク・呼吸）はこのプロジェクトに準拠。
+  デモアバター素材は同リポジトリの `ASSET_LICENSE.md` に従う。
+- [piper-plus](https://github.com/ayutaz/piper-plus)（MIT）— `scripts/setup-tts.ps1` で
+  取得する音声合成エンジン。あわせて取得するつくよみちゃん音声モデルには独自の利用規約がある。
