@@ -165,7 +165,10 @@ export function MatchContainer({
         void push({ title: t.cutin.prepTitle, sub: t.cutin.prepSub, tone: "neutral" });
       }
     }
-  }, [detail, live.state, push, rawEvents]);
+    // replaying も依存に含める: ヘッダーのリプレイボタンで replay だけが変わったとき、
+    // リセット effect が baseline を消した後にここで再初期化しないと drain が永遠に走らない。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail, live.state, push, rawEvents, replaying]);
 
   useEffect(() => {
     rawEventsRef.current = rawEvents;
