@@ -133,10 +133,14 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
           <button className="paper-btn" type="button" onClick={onExit}>
             ← 設定
           </button>
-          <button className="paper-btn danger" type="button" onClick={doAbort} disabled={!canAct}>
-            中断
-          </button>
-          <span className={`phase-pill ${phaseTone(phase)}`}>{PHASE_LABEL[phase]}</span>
+          {canAct && (
+            <>
+              <button className="paper-btn danger" type="button" onClick={doAbort}>
+                中断
+              </button>
+              <span className={`phase-pill ${phaseTone(phase)}`}>{PHASE_LABEL[phase]}</span>
+            </>
+          )}
           {phase === "error" && (
             <button className="paper-btn" type="button" onClick={doStart}>
               再試行

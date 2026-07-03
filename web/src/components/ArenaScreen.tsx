@@ -13,7 +13,7 @@ import type {
 import { SIDE_LABEL } from "@debate/shared";
 import { fetchFormats } from "../api";
 import { Art } from "../art/Art";
-import { FbGavel, FbMagnifier, FbPrepTent, FbSealStamp } from "../art/fallbacks";
+import { FbGavel, FbMagnifier, FbPrepEnvelope, FbSealStamp } from "../art/fallbacks";
 import { EvidencePanel } from "./EvidencePanel";
 import { LogView } from "./LogView";
 import { Stage } from "./Stage";
@@ -24,7 +24,7 @@ function snippet(text: string, max = 44): string {
   return chars.length <= max ? plain : chars.slice(0, max).join("") + "…";
 }
 
-/** 準備フェーズのオーバーレイ（テント + 進行状況 + 封印スタンプ） */
+/** 準備フェーズのオーバーレイ（封筒 + 進行状況 + 封印スタンプ） */
 function PrepPanel({ detail, events }: { detail: MatchDetail; events: MatchEvent[] }) {
   const teamCard = (team: TeamKey) => {
     const side = detail.config.affirmative === team ? "affirmative" : "negative";
@@ -35,7 +35,7 @@ function PrepPanel({ detail, events }: { detail: MatchDetail; events: MatchEvent
     return (
       <div className={`prep-tent-card tone-${tone} pop-in`} key={team}>
         <div className="tent-art-wrap">
-          <Art name={`prep-tent-${tone}`} className="tent-art" fallback={<FbPrepTent tone={tone} />} />
+          <Art name={`prep-envelope-${tone}`} className="tent-art" fallback={<FbPrepEnvelope tone={tone} />} />
           {!seal && (
             <div className="tent-magnifier sway">
               <Art name="magnifier" className="magnifier-art" fallback={<FbMagnifier />} />

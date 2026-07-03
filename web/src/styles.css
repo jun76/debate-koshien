@@ -573,6 +573,12 @@ button.mini:hover {
   padding-bottom: 6px;
 }
 
+.team-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .team-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -765,7 +771,7 @@ textarea {
 
 .curtain-right {
   right: -6px;
-  transform: scaleX(-1);
+  /* 反転はフォールバック SVG 側で行う（PNG アセットは右幕として描かれたまま表示する） */
 }
 
 .stage-bunting {
@@ -773,14 +779,15 @@ textarea {
   top: -4px;
   left: 40px;
   right: 40px;
-  height: 64px;
-  z-index: 7;
+  height: 86px;
+  /* チームバッジ（z6）より奥に置く */
+  z-index: 3;
   animation: wobbleSoft 6s ease-in-out infinite;
 }
 
 .stage-tree {
   position: absolute;
-  bottom: 84px;
+  bottom: 70px;
   width: 90px;
   height: 120px;
   z-index: 2;
@@ -807,6 +814,7 @@ textarea {
 }
 
 .team-banner {
+  margin-top: 24px;
   border-radius: 12px 16px 12px 16px;
   padding: 8px 18px;
   font-size: 16px;
@@ -846,12 +854,13 @@ textarea {
 
 .stage-signs {
   position: absolute;
-  top: 92px;
-  left: 24px;
-  right: 24px;
+  top: 96px;
+  left: 130px;
+  right: 130px;
   display: flex;
   justify-content: space-between;
-  z-index: 5;
+  /* 幕・観客より手前に出して、吹き出しが隠れないようにする */
+  z-index: 10;
   pointer-events: none;
 }
 
@@ -861,6 +870,14 @@ textarea {
   height: 118px;
 }
 
+.speech-sign.sign-aff {
+  margin-left: 220px;
+}
+
+.speech-sign.sign-neg {
+  margin-right: 220px;
+}
+
 .sign-art {
   position: absolute;
   inset: 0;
@@ -868,7 +885,7 @@ textarea {
 
 .sign-text {
   position: absolute;
-  inset: 10px 16px 34px;
+  inset: 10px 16px 18px;
   font-size: 12.5px;
   font-weight: 700;
   line-height: 1.5;
@@ -884,8 +901,8 @@ textarea {
 
 .stage-floor {
   position: absolute;
-  left: 70px;
-  right: 70px;
+  left: 170px;
+  right: 170px;
   bottom: 66px;
   display: flex;
   align-items: flex-end;
@@ -966,7 +983,7 @@ textarea {
   top: 12px;
   transform: translateX(-50%);
   width: 190px;
-  height: 44px;
+  height: 36px;
   z-index: 3;
 }
 
@@ -985,7 +1002,7 @@ textarea {
   font-size: 13px;
   font-weight: 900;
   color: var(--ink);
-  padding-bottom: 4px;
+  padding-bottom: 2px;
 }
 
 .plate-dot {
@@ -1049,7 +1066,7 @@ textarea {
 
 .topic-ribbon {
   position: absolute;
-  top: -12px;
+  top: -2px;
   left: 50%;
   transform: translateX(-50%) rotate(-1.5deg);
   background: var(--gold);
@@ -1081,7 +1098,7 @@ textarea {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: -6px;
+  bottom: -16px;
   height: 84px;
   z-index: 9;
   opacity: 0.96;
@@ -1481,10 +1498,10 @@ textarea {
 
 .tent-stamp {
   position: absolute;
-  right: -14px;
-  top: -14px;
-  width: 74px;
-  height: 74px;
+  right: -15px;
+  top: -12px;
+  width: 50px;
+  height: 50px;
   transform: rotate(-12deg);
 }
 
@@ -2054,6 +2071,10 @@ details summary {
     grid-template-columns: 1fr;
   }
 
+  .ticket-rail {
+    position: static;
+  }
+
   .watch-grid {
     grid-template-columns: 1fr;
   }
@@ -2066,6 +2087,11 @@ details summary {
 
   .pc-stage {
     height: 430px;
+  }
+
+  .stage-floor {
+    left: 90px;
+    right: 90px;
   }
 
   .speech-sign {

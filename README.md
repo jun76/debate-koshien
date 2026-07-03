@@ -110,7 +110,7 @@ Current slots (all transparent PNG, ~2× display size recommended):
 | `speech-sign-aff` / `speech-sign-neg` | Speech-bubble signs (no text baked in)             |
 | `audience`                            | Row of audience silhouettes                        |
 | `tree-1` / `tree-2`                   | Decorative paper trees                             |
-| `prep-tent-aff` / `prep-tent-neg`     | Preparation tents                                  |
+| `prep-envelope-aff` / `prep-envelope-neg` | Sealed prep envelopes                         |
 | `magnifier`                           | Magnifier (research animation)                     |
 | `seal-stamp`                          | "Sealed" stamp                                     |
 | `gavel`                               | Judge's gavel                                      |

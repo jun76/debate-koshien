@@ -187,8 +187,8 @@ export function Wizard({ onCreated }: { onCreated: (id: string) => void }) {
     const t = teams[key];
     return (
       <section className="card" key={key}>
-        <h3>
-          チーム {key}
+        <h3 className="team-heading">
+          <span>チーム {key}</span>
           {affirmative === key && <span className="side-chip aff">肯定側</span>}
           {affirmative !== key && affirmative !== "random" && <span className="side-chip neg">否定側</span>}
         </h3>
@@ -287,7 +287,7 @@ export function Wizard({ onCreated }: { onCreated: (id: string) => void }) {
       </div>
 
       <section className="card">
-        <h3>審査員（奇数）</h3>
+        <h3>審査員</h3>
         <div className="form-line">
           <label>人数</label>
           <select value={judgeCount} onChange={(e) => setJudgeCountAndResize(Number(e.target.value))}>
