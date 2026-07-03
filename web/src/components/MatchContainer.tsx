@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { AvatarInfo, SpeechEvent } from "@debate/shared";
+import type { AvatarInfo, MatchDetail, MatchEvent, MatchState, SpeechEvent } from "@debate/shared";
 import { SIDE_LABEL } from "@debate/shared";
 import { abortMatch, fetchAvatars, startMatch, useLiveMatch } from "../api";
 import { ArenaScreen } from "./ArenaScreen";
@@ -15,6 +15,8 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
   const [avatars, setAvatars] = useState<AvatarInfo[]>([]);
   const [audioOn, setAudioOn] = useState(true);
   const [finishedIds, setFinishedIds] = useState<Set<string>>(new Set());
+  const [displayEvents, setDisplayEvents] = useState<MatchEvent[]>([]);
+  const [displayState, setDisplayState] = useState<MatchState | null>(null);
   const [view, setView] = useState<View>("arena");
   const [actionError, setActionError] = useState<string | null>(null);
   const { current: cutin, push } = useCutIns();
@@ -22,6 +24,10 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
   const baseline = useRef<number | null>(null);
   const processed = useRef(0);
   const lastPartId = useRef<string | null>(null);
+  const rawEventsRef = useRef<MatchEvent[]>([]);
+  const detailRef = useRef<MatchDetail | null>(null);
+  const processing = useRef(false);
+  const runToken = useRef(0);
 
   useEffect(() => {
     fetchAvatars().then(setAvatars).catch(() => undefined);
@@ -29,24 +35,35 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
 
   useEffect(() => {
     setFinishedIds(new Set());
+    setDisplayEvents([]);
+    setDisplayState(null);
     setView("arena");
     baseline.current = null;
     processed.current = 0;
     lastPartId.current = null;
+    rawEventsRef.current = [];
+    detailRef.current = null;
+    processing.current = false;
+    runToken.current++;
   }, [id]);
 
   const avatarMap = useMemo(() => new Map(avatars.map((a) => [a.id, a])), [avatars]);
   const detail = live.detail;
-  const events = live.events;
+  const rawEvents = live.events;
+  const events = displayEvents;
 
   // 途中から開いたときは既存イベントにカットインを出さない（ベースラインを取る）
   useEffect(() => {
     if (!detail) return;
     if (baseline.current === null) {
-      baseline.current = events.length;
-      processed.current = events.length;
+      baseline.current = rawEvents.length;
+      processed.current = rawEvents.length;
+      rawEventsRef.current = rawEvents;
+      detailRef.current = detail;
+      setDisplayEvents(rawEvents);
+      setDisplayState(live.state ?? detail.state);
       const speechIds: string[] = [];
-      for (const ev of events) {
+      for (const ev of rawEvents) {
         if (ev.type === "speech") {
           speechIds.push(ev.id);
           lastPartId.current = ev.partId;
@@ -58,35 +75,67 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
       if (skip.length > 0) setFinishedIds((prev) => new Set([...prev, ...skip]));
       // 終了済みの試合を開いたら最初から結果画面へ
       if (detail.state.phase === "finished" || detail.state.phase === "reviewing") setView("result");
-      return;
     }
-    for (let i = processed.current; i < events.length; i++) {
-      const ev = events[i];
-      if (ev.type === "speech" && ev.partId !== lastPartId.current) {
-        lastPartId.current = ev.partId;
-        push({
-          title: ev.partLabel,
-          sub: `${SIDE_LABEL[ev.side]}・${detail.config.teams[ev.team].name}`,
-          tone: ev.side === "affirmative" ? "aff" : "neg",
-        });
-      } else if (ev.type === "phase") {
-        if (ev.phase === "preparing") push({ title: "準備フェーズ開始", sub: "Web調査 解禁", tone: "neutral" });
-        if (ev.phase === "sealed") push({ title: "ハンドアウト封印", sub: "以降の Web 利用は禁止", tone: "neutral" });
-        if (ev.phase === "debating") push({ title: "試合開始！", tone: "gold" });
-        if (ev.phase === "judging") push({ title: "審査開始", sub: "審査員は独立に判定します", tone: "neutral" });
-      } else if (ev.type === "vote") {
-        push({
-          title: `${ev.judgeName} が投票`,
-          sub: `${SIDE_LABEL[ev.vote]}へ`,
-          tone: ev.vote === "affirmative" ? "aff" : "neg",
-        });
-      } else if (ev.type === "result") {
-        push({ title: "判定発表！", sub: `${SIDE_LABEL[ev.winner]}の勝利`, tone: "gold" });
-        setTimeout(() => setView("result"), 2300);
+  }, [detail, live.state, rawEvents]);
+
+  useEffect(() => {
+    rawEventsRef.current = rawEvents;
+    detailRef.current = detail;
+  }, [detail, rawEvents]);
+
+  useEffect(() => {
+    if (!detail || baseline.current === null) return;
+    const token = runToken.current;
+
+    const drain = async () => {
+      if (processing.current) return;
+      processing.current = true;
+      try {
+        while (token === runToken.current && processed.current < rawEventsRef.current.length) {
+          const ev = rawEventsRef.current[processed.current];
+          const currentDetail = detailRef.current;
+          if (!currentDetail) break;
+
+          if (ev.type === "speech" && ev.partId !== lastPartId.current) {
+            lastPartId.current = ev.partId;
+            await push({
+              title: ev.partLabel,
+              sub: `${SIDE_LABEL[ev.side]}・${currentDetail.config.teams[ev.team].name}`,
+              tone: ev.side === "affirmative" ? "aff" : "neg",
+            });
+          } else if (ev.type === "phase") {
+            if (ev.phase === "preparing") await push({ title: "準備フェーズ開始", sub: "Web調査 解禁", tone: "neutral" });
+            if (ev.phase === "sealed") await push({ title: "ハンドアウト封印", sub: "以降の Web 利用は禁止", tone: "neutral" });
+            if (ev.phase === "debating") await push({ title: "試合開始！", tone: "gold" });
+            if (ev.phase === "judging") await push({ title: "審査開始", sub: "審査員は独立に判定します", tone: "neutral" });
+          } else if (ev.type === "vote") {
+            await push({
+              title: `${ev.judgeName} が投票`,
+              sub: `${SIDE_LABEL[ev.vote]}へ`,
+              tone: ev.vote === "affirmative" ? "aff" : "neg",
+            });
+          } else if (ev.type === "result") {
+            await push({ title: "判定発表！", sub: `${SIDE_LABEL[ev.winner]}の勝利`, tone: "gold" });
+          }
+
+          if (token !== runToken.current) break;
+          setDisplayEvents((prev) => (prev.some((shown) => shown.seq === ev.seq) ? prev : [...prev, ev]));
+          if (ev.type === "phase") {
+            setDisplayState({ phase: ev.phase, progress: ev.detail, updatedAt: ev.at });
+          }
+          if (ev.type === "result") setView("result");
+          processed.current++;
+        }
+      } finally {
+        processing.current = false;
+        if (token === runToken.current && processed.current < rawEventsRef.current.length) {
+          void drain();
+        }
       }
-    }
-    processed.current = events.length;
-  }, [detail, events, push]);
+    };
+
+    void drain();
+  }, [detail, push, rawEvents]);
 
   if (!detail) {
     return (
@@ -98,7 +147,7 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
     );
   }
 
-  const phase = live.state?.phase ?? detail.state.phase;
+  const phase = displayState?.phase ?? live.state?.phase ?? detail.state.phase;
   const canAct = !["finished", "aborted"].includes(phase);
   const resultAvailable =
     detail.verdicts.length > 0 || ["judging", "reviewing", "finished"].includes(phase);
@@ -187,7 +236,7 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
           matchId={id}
           detail={detail}
           events={events}
-          state={live.state}
+          state={displayState ?? live.state}
           avatars={avatarMap}
           audioOn={audioOn && detail.ttsAvailable}
           finishedIds={finishedIds}

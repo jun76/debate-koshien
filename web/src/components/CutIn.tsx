@@ -8,10 +8,15 @@ export interface CutInMsg {
 
 const CUTIN_MS = 1900;
 
-/** カットイン演出のキュー管理。push した順に1枚ずつ表示する。 */
+interface CutInQueueItem {
+  msg: CutInMsg;
+  resolve: () => void;
+}
+
+/** カットイン演出のキュー管理。push した順に1枚ずつ表示し、表示完了を Promise で返す。 */
 export function useCutIns() {
   const [current, setCurrent] = useState<CutInMsg | null>(null);
-  const queue = useRef<CutInMsg[]>([]);
+  const queue = useRef<CutInQueueItem[]>([]);
   const busy = useRef(false);
 
   const pump = useCallback(() => {
@@ -19,18 +24,21 @@ export function useCutIns() {
     const next = queue.current.shift();
     if (!next) return;
     busy.current = true;
-    setCurrent(next);
+    setCurrent(next.msg);
     setTimeout(() => {
       setCurrent(null);
       busy.current = false;
+      next.resolve();
       setTimeout(pump, 150);
     }, CUTIN_MS);
   }, []);
 
   const push = useCallback(
     (msg: CutInMsg) => {
-      queue.current.push(msg);
-      pump();
+      return new Promise<void>((resolve) => {
+        queue.current.push({ msg, resolve });
+        pump();
+      });
     },
     [pump],
   );
