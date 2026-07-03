@@ -1,5 +1,6 @@
 import type { AgentConfig, AvatarInfo, MatchConfig, Side, TeamKey, ThinkingInfo } from "@debate/shared";
-import { SIDE_LABEL } from "@debate/shared";
+import { sideLabel } from "@debate/shared";
+import { useLang, useT } from "../i18n";
 import { Art } from "../art/Art";
 import {
   FbAudience,
@@ -17,9 +18,10 @@ import {
 import { AvatarRenderer } from "./AvatarRenderer";
 
 /**
- * ペーパークラフト調の観戦ステージ。
- * 肯定側を左（緑）、否定側を右（赤）に配置し、現在の話者だけが口パクする。
- * 背景・幕・演台などは assets/ui/ の画像を優先し、無ければ SVG フォールバックを使う。
+ * Paper-craft spectator stage.
+ * Affirmative on the left (green), negative on the right (red); only the current speaker's
+ * mouth animates. Background, curtains, podiums, etc. prefer assets/ui/ images and fall back
+ * to SVG when missing.
  */
 export function Stage({
   config,
@@ -38,30 +40,32 @@ export function Stage({
   signTexts: Record<TeamKey, string | null>;
   thinking?: Record<string, ThinkingInfo>;
 }) {
+  const t = useT();
+  const { lang } = useLang();
   const left: TeamKey = config.affirmative;
   const right: TeamKey = left === "A" ? "B" : "A";
 
-  // チームごとの思考中ラベル（セリフバルーンに「思考中…」を出すため）
+  // Per-team "thinking" label (to show a "thinking…" speech balloon).
   const teamThinking: Record<TeamKey, string | null> = { A: null, B: null };
   for (const info of Object.values(thinking ?? {})) {
     if (info.scope === "team" && info.team) teamThinking[info.team] = info.label;
   }
 
   const teamGroup = (team: TeamKey, side: Side) => {
-    const t = config.teams[team];
+    const tc = config.teams[team];
     const tone = side === "affirmative" ? "aff" : "neg";
     const teamSpeaking = speakingTeam === team && speakingSpeakerId !== null;
-    const speakingMember = teamSpeaking ? t.members.find((m) => m.id === speakingSpeakerId) : undefined;
+    const speakingMember = teamSpeaking ? tc.members.find((m) => m.id === speakingSpeakerId) : undefined;
     const plateMember: AgentConfig =
-      speakingMember ?? t.members.find((m) => m.id === t.captainId) ?? t.members[0];
+      speakingMember ?? tc.members.find((m) => m.id === tc.captainId) ?? tc.members[0];
 
     return (
       <div className={`podium-group side-${tone}`}>
-        <div className={`stage-members count-${t.members.length}`}>
-          {t.members.map((m) => {
+        <div className={`stage-members count-${tc.members.length}`}>
+          {tc.members.map((m) => {
             const avatar = m.avatarId ? avatars.get(m.avatarId) : undefined;
             const isSpeaking = teamSpeaking && speakingSpeakerId === m.id;
-            const solo = t.members.length === 1;
+            const solo = tc.members.length === 1;
             return (
               <div key={m.id} className={`stage-member ${isSpeaking ? "speaking" : ""}`}>
                 <AvatarRenderer
@@ -100,13 +104,11 @@ export function Stage({
 
   const banner = (team: TeamKey, side: Side) => {
     const tone = side === "affirmative" ? "aff" : "neg";
-    const t = config.teams[team];
+    const tc = config.teams[team];
     return (
       <div className={`team-banner tone-${tone} wobble-soft`}>
-        <span className="banner-text">
-          {SIDE_LABEL[side]}・{t.name}
-        </span>
-        <span className="banner-mode">{t.mode === "council" ? "合議制" : "役割分担制"}</span>
+        <span className="banner-text">{t.stage.bannerLine(sideLabel(side, lang), tc.name)}</span>
+        <span className="banner-mode">{tc.mode === "council" ? t.stage.modeCouncil : t.stage.modeRoles}</span>
       </div>
     );
   };
@@ -121,10 +123,11 @@ export function Stage({
         <div className="sign-text">
           {thinkingLabel ? (
             <span className="sign-thinking" title={thinkingLabel}>
-              思考中<span className="ellipsis" />
+              {t.stage.thinking}
+              <span className="ellipsis" />
             </span>
           ) : (
-            (text ?? "よろしくお願いします！")
+            (text ?? t.stage.greeting)
           )}
         </div>
       </div>
@@ -172,7 +175,7 @@ export function Stage({
       <div className="stage-floor">
         {teamGroup(left, "affirmative")}
         <div className="stage-center-block">
-          {/* 審査員席: テーマ看板の後ろから顔を出す */}
+          {/* Judges' bench: peeking out from behind the topic board. */}
           <div className={`judge-bench count-${config.judges.length}`}>
             {config.judges.map((judge) => {
               const avatar = judge.avatarId ? avatars.get(judge.avatarId) : undefined;
@@ -185,7 +188,7 @@ export function Stage({
           </div>
           <div className="topic-board pop-in">
             <Art name="topic-board" className="topic-board-art" fallback={<FbTopicBoard />} />
-            <div className="topic-ribbon">ディベートテーマ</div>
+            <div className="topic-ribbon">{t.stage.topicRibbon}</div>
             <div className="topic-text">{topic}</div>
           </div>
         </div>

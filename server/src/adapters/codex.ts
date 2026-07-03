@@ -8,14 +8,14 @@ function codexEntry(): string {
   const appdata = process.env.APPDATA ?? path.join(os.homedir(), "AppData", "Roaming");
   const js = path.join(appdata, "npm", "node_modules", "@openai", "codex", "bin", "codex.js");
   if (fs.existsSync(js)) return js;
-  throw new Error(`codex CLI が見つからない: ${js}`);
+  throw new Error(`codex CLI not found: ${js}`);
 }
 
 /**
- * Codex CLI（codex exec）で実行する。
- * - サンドボックスは workspace-write。ネットワークは sandbox_workspace_write.network_access で制御する
- * - 準備フェーズのみ web_search ツールを有効化する
- * - 最終メッセージは --output-last-message で回収する
+ * Run the Codex CLI (codex exec).
+ * - Sandbox is workspace-write. Network is controlled via sandbox_workspace_write.network_access.
+ * - Enable the web_search tool only during the preparation phase.
+ * - Collect the final message via --output-last-message.
  */
 export class CodexAdapter implements AgentAdapter {
   readonly provider = "codex";
@@ -32,9 +32,9 @@ export class CodexAdapter implements AgentAdapter {
       "workspace-write",
       "-c",
       `sandbox_workspace_write.network_access=${inv.allowWeb ? "true" : "false"}`,
-      // ユーザー設定（config.toml）は読み込まない。MCP サーバが headless 実行で
-      // 認証待ち・接続失敗になり試合が止まるため。認証情報は CODEX_HOME から使われる。
-      // モデルや推論モードは試合設定から明示的に渡す
+      // Do not load the user config (config.toml): its MCP servers can block on auth or fail to
+      // connect in headless mode and stall the match. Credentials still come from CODEX_HOME.
+      // Model and reasoning mode are passed explicitly from the match settings.
       "--ignore-user-config",
       "--json",
       "--output-last-message",
@@ -43,7 +43,7 @@ export class CodexAdapter implements AgentAdapter {
     if (inv.allowWeb) args.push("-c", "tools.web_search=true");
     if (inv.agent.model) args.push("-m", inv.agent.model);
     if (inv.agent.reasoningEffort) args.push("-c", `model_reasoning_effort="${inv.agent.reasoningEffort}"`);
-    args.push("-"); // プロンプトは stdin から
+    args.push("-"); // Prompt comes from stdin.
 
     const res = await execCommand(process.execPath, args, {
       cwd: inv.workspaceDir,
@@ -72,7 +72,7 @@ export class CodexAdapter implements AgentAdapter {
           errorMessages.push(turnError.message);
         }
       } catch {
-        // JSON でない行は無視
+        // Ignore non-JSON lines.
       }
     }
 
@@ -85,10 +85,10 @@ export class CodexAdapter implements AgentAdapter {
       fs.rmSync(lastMsgFile, { force: true });
     }
 
-    if (res.timedOut) throw new Error(`codex がタイムアウトした (${inv.timeoutMs}ms)`);
+    if (res.timedOut) throw new Error(`codex timed out (${inv.timeoutMs}ms)`);
     if (res.code !== 0) {
       const detail = ([...new Set(errorMessages)].join(" / ") || res.stderr || output).slice(0, 500);
-      throw new Error(`codex が失敗した (exit ${res.code}): ${detail}`);
+      throw new Error(`codex failed (exit ${res.code}): ${detail}`);
     }
 
     return {

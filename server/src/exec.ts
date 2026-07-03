@@ -9,8 +9,8 @@ export interface ExecResult {
 }
 
 /**
- * サブプロセスを実行して出力を回収する。シェルは介さない（引数の引用問題を避ける）。
- * タイムアウト時は taskkill でプロセスツリーごと落とす。
+ * Run a subprocess and collect its output. No shell is involved (to avoid argument-quoting issues).
+ * On timeout, kill the whole process tree via taskkill.
  */
 export function execCommand(
   file: string,
@@ -71,7 +71,7 @@ const BEL = String.fromCharCode(7);
 const CSI_RE = new RegExp(ESC + "\\[[0-9;?]*[a-zA-Z]", "g");
 const OSC_RE = new RegExp(ESC + "\\][^" + BEL + "]*(" + BEL + "|" + ESC + "\\\\)", "g");
 
-/** ANSI エスケープシーケンス（CSI / OSC）を除去する */
+/** Strip ANSI escape sequences (CSI / OSC). */
 export function stripAnsi(text: string): string {
   return text.replace(CSI_RE, "").replace(OSC_RE, "");
 }

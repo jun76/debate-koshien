@@ -17,31 +17,31 @@ afterEach(() => {
 });
 
 describe("seal / verify", () => {
-  it("同じ内容なら検証に通る", () => {
+  it("passes verification when the content is unchanged", () => {
     const seal = sealDirectory(dir, "A");
     expect(seal.files).toHaveLength(2);
     expect(seal.rootHash).toMatch(/^[0-9a-f]{64}$/);
     expect(verifySeal(dir, seal).ok).toBe(true);
   });
 
-  it("ファイル変更を検出する", () => {
+  it("detects a modified file", () => {
     const seal = sealDirectory(dir, "A");
     fs.writeFileSync(path.join(dir, "handout.md"), "改ざん", "utf8");
     const res = verifySeal(dir, seal);
     expect(res.ok).toBe(false);
-    expect(res.detail).toContain("handout.md");
+    expect(res.diffs).toContainEqual({ kind: "changed", path: "handout.md" });
   });
 
-  it("ファイル追加・削除を検出する", () => {
+  it("detects added and removed files", () => {
     const seal = sealDirectory(dir, "A");
     fs.writeFileSync(path.join(dir, "extra.txt"), "x", "utf8");
-    expect(verifySeal(dir, seal).detail).toContain("追加: extra.txt");
+    expect(verifySeal(dir, seal).diffs).toContainEqual({ kind: "added", path: "extra.txt" });
     fs.rmSync(path.join(dir, "extra.txt"));
     fs.rmSync(path.join(dir, "evidence.json"));
-    expect(verifySeal(dir, seal).detail).toContain("削除: evidence.json");
+    expect(verifySeal(dir, seal).diffs).toContainEqual({ kind: "removed", path: "evidence.json" });
   });
 
-  it("ルートハッシュはファイル順に依存しない", () => {
+  it("root hash does not depend on file order", () => {
     const manifest = buildManifest(dir);
     const reversed = [...manifest].reverse();
     expect(rootHashOf(manifest)).toBe(rootHashOf(reversed));

@@ -1,5 +1,6 @@
 import type { AvatarInfo, MatchConfig, ResultEvent, Verdict } from "@debate/shared";
-import { SIDE_LABEL } from "@debate/shared";
+import { sideLabel } from "@debate/shared";
+import { useLang, useT } from "../i18n";
 import { AvatarRenderer } from "./AvatarRenderer";
 
 export function VerdictView({
@@ -13,17 +14,17 @@ export function VerdictView({
   result: ResultEvent | null;
   avatars: Map<string, AvatarInfo>;
 }) {
+  const t = useT();
+  const { lang } = useLang();
   return (
     <div className="verdict-view">
       {result && (
         <div className={`result-banner ${result.winner}`}>
-          <div className="result-label">判定</div>
+          <div className="result-label">{t.verdict.label}</div>
           <div className="result-winner">
-            {SIDE_LABEL[result.winner]}（{config.teams[result.winnerTeam].name}）の勝利
+            {t.verdict.winner(sideLabel(result.winner, lang), config.teams[result.winnerTeam].name)}
           </div>
-          <div className="result-votes">
-            肯定 {result.votes.affirmative} — {result.votes.negative} 否定
-          </div>
+          <div className="result-votes">{t.verdict.votes(result.votes.affirmative, result.votes.negative)}</div>
         </div>
       )}
       <div className="judge-grid">
@@ -40,10 +41,10 @@ export function VerdictView({
                   <div className="judge-name">{judge.name}</div>
                   {v ? (
                     <span className={`vote-chip ${v.vote === "affirmative" ? "aff" : "neg"}`}>
-                      {SIDE_LABEL[v.vote]}に投票
+                      {t.verdict.votedFor(sideLabel(v.vote, lang))}
                     </span>
                   ) : (
-                    <span className="vote-chip pending">判定中…</span>
+                    <span className="vote-chip pending">{t.verdict.deciding}</span>
                   )}
                 </div>
               </div>
@@ -51,9 +52,9 @@ export function VerdictView({
                 <>
                   <div className="judge-reasoning">{v.reasoning}</div>
                   <details>
-                    <summary>詳細（決定打・パート評価・証拠評価・違反）</summary>
+                    <summary>{t.verdict.detailsSummary}</summary>
                     <div className="judge-detail">
-                      <h4>勝敗を分けた論点</h4>
+                      <h4>{t.verdict.decisiveIssues}</h4>
                       <ul>
                         {v.decisiveIssues.map((d, i) => (
                           <li key={i}>{d}</li>
@@ -61,7 +62,7 @@ export function VerdictView({
                       </ul>
                       {v.speechEvaluations.length > 0 && (
                         <>
-                          <h4>パート評価</h4>
+                          <h4>{t.verdict.partEval}</h4>
                           <ul>
                             {v.speechEvaluations.map((e, i) => (
                               <li key={i}>
@@ -73,11 +74,11 @@ export function VerdictView({
                       )}
                       {v.evidenceAssessment.length > 0 && (
                         <>
-                          <h4>証拠評価</h4>
+                          <h4>{t.verdict.evidenceEval}</h4>
                           <ul>
                             {v.evidenceAssessment.map((e, i) => (
                               <li key={i}>
-                                <b>{e.evidenceId}</b>（信頼性: {e.reliability}）: {e.comment}
+                                <b>{e.evidenceId}</b>（{t.verdict.reliability}: {e.reliability}）: {e.comment}
                               </li>
                             ))}
                           </ul>
@@ -85,7 +86,7 @@ export function VerdictView({
                       )}
                       {v.violations.length > 0 && (
                         <>
-                          <h4>指摘された違反・逸脱</h4>
+                          <h4>{t.verdict.violations}</h4>
                           <ul>
                             {v.violations.map((e, i) => (
                               <li key={i}>
@@ -96,10 +97,10 @@ export function VerdictView({
                           </ul>
                         </>
                       )}
-                      <h4>コミュニケーション</h4>
+                      <h4>{t.verdict.communication}</h4>
                       <ul>
-                        <li>明瞭さ: {v.communication.clarity}</li>
-                        <li>応答性: {v.communication.responsiveness}</li>
+                        <li>{t.verdict.clarity}: {v.communication.clarity}</li>
+                        <li>{t.verdict.responsiveness}: {v.communication.responsiveness}</li>
                         <li>{v.communication.comment}</li>
                       </ul>
                     </div>

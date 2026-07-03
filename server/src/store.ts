@@ -28,7 +28,7 @@ function writeJson(file: string, value: unknown): void {
   fs.writeFileSync(file, JSON.stringify(value, null, 2), "utf8");
 }
 
-/* ---------- イベントバス ---------- */
+/* ---------- Event bus ---------- */
 
 type Listener = (ev: MatchEvent) => void;
 const listeners = new Map<string, Set<Listener>>();
@@ -56,7 +56,7 @@ export function readEvents(matchId: string): MatchEvent[] {
       try {
         events.push(JSON.parse(trimmed) as MatchEvent);
       } catch {
-        // 壊れた行は読み飛ばす（append 中のクラッシュなど）
+        // Skip broken lines (e.g. a crash mid-append).
       }
     }
   }
@@ -69,7 +69,7 @@ export function appendEvent<T extends Omit<MatchEvent, "seq" | "at">>(
   ev: T,
 ): MatchEvent {
   const events = readEvents(matchId);
-  // 壊れた行を読み飛ばした場合でも seq が重複しないよう、末尾 seq + 1 を採番する
+  // Assign last-seq + 1 so seq never duplicates even when broken lines were skipped.
   const last = events[events.length - 1];
   const full = { ...ev, seq: last ? last.seq + 1 : 0, at: new Date().toISOString() } as unknown as MatchEvent;
   const file = matchPaths.debateLog(matchId);
@@ -80,13 +80,13 @@ export function appendEvent<T extends Omit<MatchEvent, "seq" | "at">>(
     try {
       fn(full);
     } catch {
-      // リスナー側の例外で進行を止めない
+      // Do not let a listener exception halt progress.
     }
   }
   return full;
 }
 
-/* ---------- 試合 CRUD ---------- */
+/* ---------- Match CRUD ---------- */
 
 export function createMatch(config: MatchConfig): void {
   ensureDir(matchDir(config.id));
@@ -124,8 +124,8 @@ export function setProgress(matchId: string, progress: string): void {
 }
 
 /**
- * 思考中情報の更新。キー単位で set / clear する（準備フェーズは両チームが並行するため、
- * 単一スロットではなくキー付きで持つ）。フェーズ遷移（setPhase）で全てクリアされる。
+ * Update the thinking info, set/cleared per key (the prep phase runs both teams in parallel, so
+ * it is keyed rather than a single slot). A phase transition (setPhase) clears everything.
  */
 export function updateThinking(matchId: string, key: string, entry: ThinkingInfo | null): void {
   const st = getState(matchId);
@@ -169,7 +169,7 @@ export function deleteMatch(matchId: string): boolean {
   return true;
 }
 
-/* ---------- 封印・審査・レビュー ---------- */
+/* ---------- Seals, verdicts, review ---------- */
 
 export function saveSeal(matchId: string, seal: Seal): void {
   writeJson(matchPaths.sealFile(matchId, seal.team), seal);

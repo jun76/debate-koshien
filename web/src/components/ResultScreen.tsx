@@ -1,11 +1,12 @@
 import type { AvatarInfo, MatchDetail, MatchEvent, ResultEvent } from "@debate/shared";
-import { SIDE_LABEL } from "@debate/shared";
+import { sideLabel } from "@debate/shared";
 import { Art } from "../art/Art";
 import { FbConfetti, FbGavel, FbTrophy } from "../art/fallbacks";
+import { useLang, useT } from "../i18n";
 import { ReviewView } from "./ReviewView";
 import { VerdictView } from "./VerdictView";
 
-/** 結果と講評の画面。勝者の発表 → 審査員の判定 → 感想戦レビュー。 */
+/** Result & review screen: winner announcement -> judges' verdicts -> post-match review. */
 export function ResultScreen({
   detail,
   events,
@@ -15,6 +16,8 @@ export function ResultScreen({
   events: MatchEvent[];
   avatars: Map<string, AvatarInfo>;
 }) {
+  const t = useT();
+  const { lang } = useLang();
   const result = [...events].reverse().find((e): e is ResultEvent => e.type === "result") ?? null;
   const phase = detail.state.phase;
 
@@ -30,14 +33,14 @@ export function ResultScreen({
               <Art name="trophy" className="trophy-art" fallback={<FbTrophy />} />
             </div>
             <div>
-              <div className="winner-kicker">勝者</div>
+              <div className="winner-kicker">{t.result.winnerKicker}</div>
               <div className="winner-name">
-                {SIDE_LABEL[result.winner]}・{detail.config.teams[result.winnerTeam].name}
+                {t.result.winnerName(sideLabel(result.winner, lang), detail.config.teams[result.winnerTeam].name)}
               </div>
               <div className="winner-votes">
-                <span className="vote-count aff">肯定 {result.votes.affirmative}</span>
+                <span className="vote-count aff">{t.result.voteAff(result.votes.affirmative)}</span>
                 <span className="vote-sep">—</span>
-                <span className="vote-count neg">{result.votes.negative} 否定</span>
+                <span className="vote-count neg">{t.result.voteNeg(result.votes.negative)}</span>
               </div>
             </div>
           </div>
@@ -47,7 +50,7 @@ export function ResultScreen({
           <span className="gavel-mini big">
             <Art name="gavel" className="gavel-art" fallback={<FbGavel />} />
           </span>
-          審査員が判定中です<span className="dots" />
+          {t.result.judgesDeciding}<span className="dots" />
         </div>
       )}
 
@@ -58,7 +61,7 @@ export function ResultScreen({
       ) : (
         (phase === "reviewing" || phase === "judging") && (
           <div className="paper review-pending">
-            💬 解説エージェントが感想戦レビューを執筆中<span className="dots" />
+            {t.result.reviewPending}<span className="dots" />
           </div>
         )
       )}

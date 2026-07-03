@@ -1,12 +1,12 @@
 /**
- * アセット画像が未配置のときに表示するペーパークラフト調 SVG フォールバック集。
- * 本番アセットは assets/ui/*.png として後から生成・配置される前提なので、
- * ここでは雰囲気（紙の重なり・丸み・ステッチ）を再現した簡易版にとどめる。
+ * Paper-craft SVG fallbacks shown when the asset images are not in place.
+ * The production assets are expected to be generated/placed later as assets/ui/*.png, so these
+ * are simplified versions that just reproduce the vibe (paper layering, rounded shapes, stitching).
  */
 
 const stitch = { strokeDasharray: "5 6", strokeLinecap: "round" as const };
 
-/** 舞台幕（左右） */
+/** Stage curtains (left/right). */
 export function FbCurtain({ flip = false }: { flip?: boolean }) {
   return (
     <svg viewBox="0 0 120 400" preserveAspectRatio="none" style={{ width: "100%", height: "100%", transform: flip ? "scaleX(-1)" : undefined }}>
@@ -18,7 +18,7 @@ export function FbCurtain({ flip = false }: { flip?: boolean }) {
   );
 }
 
-/** ガーランド（三角旗の列） */
+/** Bunting (a row of triangular flags). */
 export function FbBunting() {
   const colors = ["#e9a93d", "#2e8073", "#bf4050", "#5b8fb9", "#e9a93d", "#2e8073", "#bf4050", "#5b8fb9"];
   const ropeY = (x: number) => {
@@ -26,7 +26,7 @@ export function FbBunting() {
     return 12 * (1 - t) * (1 - t) + 92 * (1 - t) * t + 12 * t * t;
   };
   return (
-    // 旗の上辺をロープの曲線に重ねる。先端（最大 y ≈ 78）も収まるよう viewBox に余裕を持たせる。
+    // Overlay each flag's top edge on the rope curve. Give the viewBox headroom so the tips (max y ~= 78) fit.
     <svg viewBox="0 0 800 96" preserveAspectRatio="none" style={{ width: "100%", height: "100%" }}>
       {colors.map((c, i) => {
         const x = 40 + i * 96;
@@ -40,7 +40,7 @@ export function FbBunting() {
   );
 }
 
-/** VS メダリオン（吊り下げ） */
+/** VS medallion (hanging). */
 export function FbVsMedallion() {
   return (
     <svg viewBox="0 0 160 210" style={{ width: "100%", height: "100%" }}>
@@ -54,7 +54,7 @@ export function FbVsMedallion() {
   );
 }
 
-/** 演台（チームカラー） */
+/** Podium (team color). */
 export function FbPodium({ tone }: { tone: "aff" | "neg" }) {
   const main = tone === "aff" ? "#2e8073" : "#bf4050";
   const deep = tone === "aff" ? "#1f5d54" : "#8e2c3a";
@@ -69,7 +69,7 @@ export function FbPodium({ tone }: { tone: "aff" | "neg" }) {
   );
 }
 
-/** マイク */
+/** Microphone. */
 export function FbMic() {
   return (
     <svg viewBox="0 0 60 90" style={{ width: "100%", height: "100%" }}>
@@ -81,7 +81,7 @@ export function FbMic() {
   );
 }
 
-/** 観客シルエット（一列分。横リピート想定） */
+/** Audience silhouettes (one row; meant to repeat horizontally). */
 export function FbAudience() {
   const tones = ["#9b8262", "#7d6752", "#b09876", "#8a7460", "#a58a68"];
   return (
@@ -90,7 +90,7 @@ export function FbAudience() {
         const x = 20 + i * 64 + (i % 2) * 10;
         const y = 38 + ((i * 13) % 3) * 8;
         const c = tones[i % tones.length];
-        // 肩の丸みの頂点を頭（下端 y+20）に重ねて、頭部が浮いて見えないようにする
+        // Overlap the shoulder's rounded top with the head (bottom y+20) so the head does not look detached.
         return (
           <g key={i}>
             <ellipse cx={x} cy={y} rx="12" ry="18" fill={c} />
@@ -105,7 +105,7 @@ export function FbAudience() {
   );
 }
 
-/** 木（丸い葉が段になった紙の木） */
+/** Tree (a paper tree with tiers of rounded foliage). */
 export function FbTree() {
   return (
     <svg viewBox="0 0 120 160" style={{ width: "100%", height: "100%" }}>
@@ -116,7 +116,7 @@ export function FbTree() {
   );
 }
 
-/** 論題ボード（クラフト紙の掲示板） */
+/** Topic board (a kraft-paper notice board). */
 export function FbTopicBoard() {
   return (
     <svg viewBox="0 0 420 150" preserveAspectRatio="none" style={{ width: "100%", height: "100%" }}>
@@ -130,7 +130,7 @@ export function FbTopicBoard() {
   );
 }
 
-/** ネームプレート */
+/** Nameplate. */
 export function FbNameplate({ tone }: { tone: "aff" | "neg" | "neutral" }) {
   const edge = tone === "aff" ? "#2e8073" : tone === "neg" ? "#bf4050" : "#8a6a44";
   return (
@@ -141,7 +141,7 @@ export function FbNameplate({ tone }: { tone: "aff" | "neg" | "neutral" }) {
   );
 }
 
-/** 吹き出し看板 */
+/** Speech-bubble sign. */
 export function FbSpeechSign({ tone }: { tone: "aff" | "neg" }) {
   const edge = tone === "aff" ? "#2e8073" : "#bf4050";
   return (
@@ -152,7 +152,7 @@ export function FbSpeechSign({ tone }: { tone: "aff" | "neg" }) {
   );
 }
 
-/** 背景（空・丘・街並み） */
+/** Backdrop (sky, hills, townscape). */
 export function FbBackdrop() {
   return (
     <svg viewBox="0 0 1200 420" preserveAspectRatio="xMidYMax slice" style={{ width: "100%", height: "100%" }}>
@@ -173,7 +173,7 @@ export function FbBackdrop() {
   );
 }
 
-/** 封印スタンプ */
+/** Seal stamp. */
 export function FbSealStamp() {
   return (
     <svg viewBox="0 0 120 120" style={{ width: "100%", height: "100%" }}>
@@ -186,7 +186,7 @@ export function FbSealStamp() {
   );
 }
 
-/** 木槌（審査） */
+/** Gavel (judging). */
 export function FbGavel() {
   return (
     <svg viewBox="0 0 120 120" style={{ width: "100%", height: "100%" }}>
@@ -197,7 +197,7 @@ export function FbGavel() {
   );
 }
 
-/** トロフィー */
+/** Trophy. */
 export function FbTrophy() {
   return (
     <svg viewBox="0 0 140 150" style={{ width: "100%", height: "100%" }}>
@@ -210,7 +210,7 @@ export function FbTrophy() {
   );
 }
 
-/** 紙吹雪 */
+/** Confetti. */
 export function FbConfetti() {
   const colors = ["#e9a93d", "#2e8073", "#bf4050", "#5b8fb9", "#d97fb0"];
   return (
@@ -225,14 +225,14 @@ export function FbConfetti() {
   );
 }
 
-/** 準備フェーズの封筒（調査中は半開き、封印後は閉じる） */
+/** Preparation-phase envelope (half-open while researching, closed after sealing). */
 export function FbPrepEnvelope({ tone, sealed = false }: { tone: "aff" | "neg"; sealed?: boolean }) {
   const main = tone === "aff" ? "#2e8073" : "#bf4050";
   const deep = tone === "aff" ? "#1f5d54" : "#8e2c3a";
   const pale = tone === "aff" ? "#e9f4f0" : "#faeaea";
   return (
     <svg viewBox="0 0 220 150" style={{ width: "100%", height: "100%" }}>
-      {/* 封筒本体（裏面） */}
+      {/* Envelope body (back). */}
       <rect x="10" y="24" width="200" height="112" rx="10" fill="#e2cba0" />
       <rect x="6" y="18" width="200" height="112" rx="10" fill="#fdf6e6" stroke="#8a6a44" strokeWidth="3" />
       {sealed ? (
@@ -260,7 +260,7 @@ export function FbPrepEnvelope({ tone, sealed = false }: { tone: "aff" | "neg"; 
   );
 }
 
-/** 虫めがね（調査中） */
+/** Magnifier (researching). */
 export function FbMagnifier() {
   return (
     <svg viewBox="0 0 100 100" style={{ width: "100%", height: "100%" }}>
@@ -272,9 +272,9 @@ export function FbMagnifier() {
 }
 
 /**
- * アバター素材（assets/avatars/）が無いときのフォールバックキャラクター。
- * 名前から決まる配色のペーパークラフト調キャラで、CSS によるまばたきと
- * speaking 中の口パクだけを持つ簡易版（styles.css の .fb-avatar 参照）。
+ * Fallback character shown when avatar assets (assets/avatars/) are missing.
+ * A paper-craft character whose colors are derived from the name, with only CSS-driven blinking
+ * and mouth movement while speaking (see .fb-avatar in styles.css).
  */
 const FB_AVATAR_PALETTES = [
   { hair: "#5b4a3f", cloth: "#2e8073" },
@@ -291,25 +291,25 @@ export function FbAvatar({ name, speaking = false }: { name: string; speaking?: 
   const p = FB_AVATAR_PALETTES[h % FB_AVATAR_PALETTES.length];
   return (
     <svg viewBox="0 0 120 150" className={`fb-avatar ${speaking ? "speaking" : ""}`} style={{ width: "100%", height: "100%" }}>
-      {/* 後ろ髪 */}
+      {/* Back hair. */}
       <ellipse cx="60" cy="70" rx="40" ry="38" fill={p.hair} />
-      {/* 体（肩口を上げ、あごと重ねて首が浮かないようにする） */}
+      {/* Body (shoulders raised and overlapped with the chin so the neck does not float). */}
       <path d="M22 150 Q24 104 60 100 Q96 104 98 150 Z" fill={p.cloth} stroke="#00000018" strokeWidth="2" />
-      {/* 襟 */}
+      {/* Collar. */}
       <path d="M48 104 L60 118 L72 104" fill="none" stroke="#fffaf0" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-      {/* 顔（体の上に重ねて描く） */}
+      {/* Face (drawn on top of the body). */}
       <circle cx="60" cy="74" r="30" fill="#f7e3cf" stroke="#00000010" strokeWidth="2" />
-      {/* 前髪 */}
+      {/* Front hair. */}
       <path d="M29 70 Q32 40 60 38 Q88 40 91 70 Q76 54 60 57 Q44 54 29 70 Z" fill={p.hair} />
-      {/* 目（まばたきは CSS の scaleY） */}
+      {/* Eyes (blink via CSS scaleY). */}
       <g className="fb-eyes">
         <circle cx="48" cy="77" r="3.6" fill="#4a3826" />
         <circle cx="72" cy="77" r="3.6" fill="#4a3826" />
       </g>
-      {/* 頬 */}
+      {/* Cheeks. */}
       <circle cx="41" cy="86" r="4.4" fill="#f0b2a0" opacity="0.7" />
       <circle cx="79" cy="86" r="4.4" fill="#f0b2a0" opacity="0.7" />
-      {/* 口（speaking 中は CSS でぱくぱく） */}
+      {/* Mouth (animates via CSS while speaking). */}
       <ellipse className="fb-mouth" cx="60" cy="93" rx="6" ry="3" fill="#a05046" />
     </svg>
   );

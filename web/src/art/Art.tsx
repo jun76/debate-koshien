@@ -1,10 +1,10 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
 
 /**
- * ペーパークラフト調アセットのローダ。
- * /assets/ui/<name>.png を試し、存在しなければ SVG フォールバックを表示する。
- * アセット画像は後から assets/ui/ に置くだけで差し替わる。
- * スロット一覧は docs/002_UIアセット一覧.md を参照。
+ * Loader for paper-craft assets.
+ * Tries /assets/ui/<name>.png and shows the SVG fallback if it does not exist.
+ * Asset images can be swapped in later just by dropping them into assets/ui/.
+ * See docs/002_UIアセット一覧.md for the list of slots.
  */
 const failedAssets = new Set<string>();
 

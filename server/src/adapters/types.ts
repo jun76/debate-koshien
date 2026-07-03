@@ -1,4 +1,4 @@
-import type { AgentConfig, FormatPart, Side, TeamKey } from "@debate/shared";
+import type { AgentConfig, FormatPart, Lang, Side, TeamKey } from "@debate/shared";
 
 export type InvocationKind =
   | "prep-research"
@@ -13,12 +13,13 @@ export type InvocationKind =
   | "judge"
   | "review";
 
-/** mock アダプタがそれらしい内容を生成するためのヒント。実 CLI アダプタは無視する */
+/** Hints for the mock adapter to produce plausible content. Real CLI adapters ignore these. */
 export interface MockHints {
   topic?: string;
   side?: Side;
   team?: TeamKey;
   part?: FormatPart;
+  lang?: Lang;
   exchangeIndex?: number;
   lastQuestion?: string;
   evidenceIds?: string[];
@@ -31,14 +32,14 @@ export interface AgentInvocation {
   kind: InvocationKind;
   agent: AgentConfig;
   matchId: string;
-  /** ログ用ラベル（"teamA/prep" など） */
+  /** Label for logging (e.g. "teamA/prep"). */
   label: string;
   instructions: string;
-  /** エージェントの作業ディレクトリ（cwd） */
+  /** The agent's working directory (cwd). */
   workspaceDir: string;
-  /** Web ツールの許可。false のとき CLI の権限フラグで禁止する */
+  /** Whether web tools are allowed. When false, forbidden via the CLI's permission flags. */
   allowWeb: boolean;
-  /** ファイル操作系ツールが必要か（発言生成などテキストのみのタスクでは false） */
+  /** Whether file-editing tools are needed (false for text-only tasks like speech generation). */
   needsFileTools: boolean;
   timeoutMs: number;
   mockHints?: MockHints;

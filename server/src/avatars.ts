@@ -12,7 +12,7 @@ const EXPRESSION_FILES = [
   "eyes-closed-mouth-open",
 ] as const;
 
-/** assets/avatars/ を走査して PuruPuru PNGTuber 形式のアバターを列挙する */
+/** Scan assets/avatars/ and enumerate avatars in the PuruPuru PNGTuber format. */
 export function listAvatars(): AvatarInfo[] {
   if (!fs.existsSync(AVATARS_DIR)) return [];
   const out: AvatarInfo[] = [];
@@ -49,7 +49,7 @@ export function listAvatars(): AvatarInfo[] {
           });
         }
       } catch {
-        // 設定が壊れていても画像だけで表示できる
+        // Even if the settings are broken, the images alone are enough to render.
       }
     }
 

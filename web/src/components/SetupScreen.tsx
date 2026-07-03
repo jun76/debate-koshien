@@ -1,20 +1,10 @@
 import { useState } from "react";
 import type { MatchSummary, Phase } from "@debate/shared";
+import { phaseLabel } from "@debate/shared";
 import { Art } from "../art/Art";
 import { FbGavel, FbTrophy } from "../art/fallbacks";
+import { LanguageToggle, useLang, useT } from "../i18n";
 import { Wizard } from "./Wizard";
-
-export const PHASE_LABEL: Record<Phase, string> = {
-  setup: "未開始",
-  preparing: "準備中",
-  sealed: "封印済み",
-  debating: "試合中",
-  judging: "審査中",
-  reviewing: "講評中",
-  finished: "終了",
-  aborted: "中断",
-  error: "エラー",
-};
 
 export function phaseTone(phase: Phase): string {
   if (phase === "finished") return "done";
@@ -64,7 +54,7 @@ function ReplayIcon() {
   );
 }
 
-/** 設定画面（ロビー）。チーム編成ウィザードと過去試合のチケット一覧。 */
+/** Setup screen (lobby): the team-building wizard plus a ticket list of past matches. */
 export function SetupScreen({
   matches,
   onOpen,
@@ -78,10 +68,12 @@ export function SetupScreen({
   onCreated: (id: string, opts?: { replay?: boolean }) => void;
   loadError: string | null;
 }) {
+  const t = useT();
+  const { lang } = useLang();
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const doDelete = async (match: MatchSummary) => {
-    if (!confirm(`「${match.topic}」を削除しますか？\n関連データ一式も data フォルダから削除されます。`)) return;
+    if (!confirm(t.lobby.deleteConfirm(match.topic))) return;
     setDeletingId(match.id);
     try {
       await onDeleted(match.id);
@@ -92,14 +84,17 @@ export function SetupScreen({
 
   return (
     <div className="setup-screen">
+      <div className="lobby-topbar">
+        <LanguageToggle />
+      </div>
       <div className="lobby-title wobble-soft">
         <div className="lobby-deco left">
           <Art name="gavel" className="deco-art" fallback={<FbGavel />} />
         </div>
         <div>
-          <div className="lobby-kicker">コーディングエージェント対抗</div>
-          <h1>AIディベート甲子園</h1>
-          <div className="lobby-sub">調査・証拠・反駁・審査 — ぜんぶエージェント</div>
+          <div className="lobby-kicker">{t.lobby.kicker}</div>
+          <h1>{t.common.appTitle}</h1>
+          <div className="lobby-sub">{t.lobby.subtitle}</div>
         </div>
         <div className="lobby-deco right">
           <Art name="trophy" className="deco-art" fallback={<FbTrophy />} />
@@ -110,8 +105,8 @@ export function SetupScreen({
 
       <div className="lobby-layout">
         <aside className="ticket-rail">
-          <div className="rail-title">過去の試合</div>
-          {matches.length === 0 && <div className="empty">まだ試合はありません</div>}
+          <div className="rail-title">{t.lobby.pastMatches}</div>
+          {matches.length === 0 && <div className="empty">{t.lobby.noMatches}</div>}
           {matches.map((m, i) => (
             <div
               key={m.id}
@@ -129,8 +124,8 @@ export function SetupScreen({
               <button
                 type="button"
                 className="ticket-delete"
-                aria-label="試合を削除"
-                title="試合を削除"
+                aria-label={t.lobby.deleteMatch}
+                title={t.lobby.deleteMatch}
                 onClick={(e) => {
                   e.stopPropagation();
                   void doDelete(m);
@@ -148,8 +143,8 @@ export function SetupScreen({
                 <button
                   type="button"
                   className="ticket-replay"
-                  aria-label="デモ再生（最初から観戦）"
-                  title="デモ再生（最初から観戦）"
+                  aria-label={t.lobby.replayTitle}
+                  title={t.lobby.replayTitle}
                   onClick={(e) => {
                     e.stopPropagation();
                     onOpen(m.id, { replay: true });
@@ -164,9 +159,9 @@ export function SetupScreen({
                   <ReplayIcon />
                 </button>
               )}
-              <span className={`phase-pill ${phaseTone(m.phase)}`}>{PHASE_LABEL[m.phase]}</span>
+              <span className={`phase-pill ${phaseTone(m.phase)}`}>{phaseLabel(m.phase, lang)}</span>
               <span className="ticket-topic">{m.topic}</span>
-              <span className="ticket-date">{new Date(m.createdAt).toLocaleString("ja-JP")}</span>
+              <span className="ticket-date">{new Date(m.createdAt).toLocaleString(t.common.localeString)}</span>
             </div>
           ))}
         </aside>

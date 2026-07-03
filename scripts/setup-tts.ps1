@@ -43,33 +43,53 @@ if ($shareSource) {
   Copy-Item -Path (Join-Path $shareSource.FullName "*") -Destination $shareDest -Recurse -Force
 }
 
-$modelPath = Join-Path $modelDir "tsukuyomi.onnx"
-$configPath = Join-Path $modelDir "config.json"
+# Voice models live under models/<lang>/. The server picks a model by the match's language.
+$jaDir = Join-Path $modelDir "ja"
+$enDir = Join-Path $modelDir "en"
+New-Item -ItemType Directory -Force -Path $jaDir, $enDir | Out-Null
 
-if (-not (Test-Path -LiteralPath $modelPath)) {
-  Write-Host "Downloading Tsukuyomi model..." -ForegroundColor Cyan
+# Japanese: Tsukuyomi-chan (multilingual model).
+$jaModel = Join-Path $jaDir "tsukuyomi.onnx"
+$jaConfig = Join-Path $jaDir "config.json"
+if (-not (Test-Path -LiteralPath $jaModel)) {
+  Write-Host "Downloading Japanese (Tsukuyomi) model..." -ForegroundColor Cyan
   Invoke-WebRequest `
     -Uri "https://huggingface.co/ayousanz/piper-plus-tsukuyomi-chan/resolve/main/tsukuyomi-chan-6lang-fp16.onnx" `
-    -OutFile $modelPath
+    -OutFile $jaModel
 }
-
-if (-not (Test-Path -LiteralPath $configPath)) {
-  Write-Host "Downloading Tsukuyomi config..." -ForegroundColor Cyan
+if (-not (Test-Path -LiteralPath $jaConfig)) {
+  Write-Host "Downloading Japanese (Tsukuyomi) config..." -ForegroundColor Cyan
   Invoke-WebRequest `
     -Uri "https://huggingface.co/ayousanz/piper-plus-tsukuyomi-chan/resolve/main/config.json" `
-    -OutFile $configPath
+    -OutFile $jaConfig
 }
 
-$sample = Join-Path $ttsDir "sample.wav"
-Write-Host "Testing synthesis..." -ForegroundColor Cyan
-if (Test-Path -LiteralPath $sample) {
-  Remove-Item -LiteralPath $sample -Force
+# English: a standard piper en_US voice (config filename matches "<model>.onnx.json").
+$enModel = Join-Path $enDir "en_US-lessac-medium.onnx"
+$enConfig = Join-Path $enDir "en_US-lessac-medium.onnx.json"
+$enBase = "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium"
+if (-not (Test-Path -LiteralPath $enModel)) {
+  Write-Host "Downloading English (en_US-lessac-medium) model..." -ForegroundColor Cyan
+  Invoke-WebRequest -Uri "$enBase/en_US-lessac-medium.onnx" -OutFile $enModel
 }
-$testText = -join ([char[]](0x97F3, 0x58F0, 0x5408, 0x6210, 0x306E, 0x30C6, 0x30B9, 0x30C8, 0x3067, 0x3059, 0x3002))
+if (-not (Test-Path -LiteralPath $enConfig)) {
+  Write-Host "Downloading English (en_US-lessac-medium) config..." -ForegroundColor Cyan
+  Invoke-WebRequest -Uri "$enBase/en_US-lessac-medium.onnx.json" -OutFile $enConfig
+}
+
 $env:OPENJTALK_DICTIONARY_PATH = Join-Path $piperDir "share\open_jtalk\dic"
-& $piperExe --model $modelPath --config $configPath --text $testText --output_file $sample
-if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $sample)) {
-  throw "piper-plus synthesis test failed."
+
+function Test-Synthesis($label, $model, $config, $text, $out) {
+  Write-Host "Testing $label synthesis..." -ForegroundColor Cyan
+  if (Test-Path -LiteralPath $out) { Remove-Item -LiteralPath $out -Force }
+  & $piperExe --model $model --config $config --text $text --output_file $out
+  if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $out)) {
+    throw "piper-plus $label synthesis test failed."
+  }
 }
 
-Write-Host "TTS is ready: $ttsDir" -ForegroundColor Green
+$jaText = -join ([char[]](0x97F3, 0x58F0, 0x5408, 0x6210, 0x306E, 0x30C6, 0x30B9, 0x30C8, 0x3067, 0x3059, 0x3002))
+Test-Synthesis "Japanese" $jaModel $jaConfig $jaText (Join-Path $ttsDir "sample-ja.wav")
+Test-Synthesis "English" $enModel $enConfig "This is a synthesis test." (Join-Path $ttsDir "sample-en.wav")
+
+Write-Host "TTS is ready (ja + en): $ttsDir" -ForegroundColor Green

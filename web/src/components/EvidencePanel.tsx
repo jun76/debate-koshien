@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { HandoutResponse, MatchConfig, TeamKey } from "@debate/shared";
-import { SIDE_LABEL, sideOfTeam } from "@debate/shared";
+import { sideLabel, sideOfTeam } from "@debate/shared";
 import { fetchHandout } from "../api";
+import { useLang, useT } from "../i18n";
 
 export function EvidencePanel({
   matchId,
@@ -16,6 +17,8 @@ export function EvidencePanel({
   selected: { team: TeamKey; id: string } | null;
   onSelect: (sel: { team: TeamKey; id: string } | null) => void;
 }) {
+  const t = useT();
+  const { lang } = useLang();
   const [tab, setTab] = useState<TeamKey>("A");
   const [handouts, setHandouts] = useState<Partial<Record<TeamKey, HandoutResponse>>>({});
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -31,7 +34,7 @@ export function EvidencePanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchId, sealed.A, sealed.B]);
 
-  // 発言ログの証拠チップをクリックしたらタブを切り替えて該当エントリへスクロール
+  // Clicking an evidence chip in the log switches the tab and scrolls to that entry.
   useEffect(() => {
     if (!selected) return;
     setTab(selected.team);
@@ -44,7 +47,7 @@ export function EvidencePanel({
   return (
     <div className="evidence-panel">
       <div className="log-head">
-        <h3>証拠資料</h3>
+        <h3>{t.evidence.heading}</h3>
         <div className="tabs">
           {(["A", "B"] as TeamKey[]).map((team) => (
             <button
@@ -52,19 +55,19 @@ export function EvidencePanel({
               className={`tab ${tab === team ? "active" : ""} ${sideOfTeam(config, team) === "affirmative" ? "aff" : "neg"}`}
               onClick={() => setTab(team)}
             >
-              {SIDE_LABEL[sideOfTeam(config, team)]}（{config.teams[team].name}）
+              {t.evidence.tab(sideLabel(sideOfTeam(config, team), lang), config.teams[team].name)}
             </button>
           ))}
         </div>
       </div>
-      {!sealed[tab] && <div className="empty">封印前のため閲覧できません</div>}
-      {sealed[tab] && !h && <div className="empty">読み込み中…</div>}
+      {!sealed[tab] && <div className="empty">{t.evidence.beforeSeal}</div>}
+      {sealed[tab] && !h && <div className="empty">{t.evidence.loading}</div>}
       {h && (
         <div ref={listRef} className="evidence-list">
           {h.seal && (
             <div className="seal-info">
-              封印ハッシュ <code className="hash">{h.seal.rootHash.slice(0, 16)}…</code>
-              <span className="seal-time">{new Date(h.seal.sealedAt).toLocaleString("ja-JP")}</span>
+              {t.evidence.sealHash} <code className="hash">{h.seal.rootHash.slice(0, 16)}…</code>
+              <span className="seal-time">{new Date(h.seal.sealedAt).toLocaleString(t.common.localeString)}</span>
             </div>
           )}
           {h.evidence.map((e) => (
@@ -85,7 +88,7 @@ export function EvidencePanel({
                   <>
                     {" "}
                     <a href={e.source.url} target="_blank" rel="noreferrer">
-                      出典
+                      {t.evidence.source}
                     </a>
                   </>
                 )}
@@ -93,7 +96,7 @@ export function EvidencePanel({
             </div>
           ))}
           <details className="handout-raw">
-            <summary>handout.md 全文</summary>
+            <summary>{t.evidence.handoutFull}</summary>
             <pre>{h.handout}</pre>
           </details>
         </div>

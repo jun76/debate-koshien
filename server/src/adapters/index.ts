@@ -42,7 +42,7 @@ export function getAdapter(provider: Provider): AgentAdapter {
   return a;
 }
 
-/** アダプタを呼び、生ログを必ず保存する */
+/** Invoke the adapter and always persist the raw log. */
 export async function invokeAgent(inv: AgentInvocation): Promise<AgentResult> {
   const adapter = getAdapter(inv.agent.provider);
   try {

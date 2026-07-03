@@ -4,14 +4,14 @@ import { FbAvatar } from "../art/fallbacks";
 
 type Mouth = "closed" | "half" | "open";
 
-/** FbAvatar（フォールバック SVG）の viewBox 縦横比 */
+/** viewBox aspect ratio of FbAvatar (the fallback SVG). */
 const FALLBACK_ASPECT = 120 / 150;
 
 /**
- * PuruPuru PNGTuber 形式のアバター素材を重ねて表示する軽量レンダラ。
- * 後ろ髪 → アイテム(faceBack) → 表情差分 → 前髪 → アイテム(frontHairFront) の順に合成し、
- * 自動まばたきと、speaking 中の口パクを行う。
- * avatar が無い場合は同じサイズ計算でフォールバック SVG キャラを表示する。
+ * Lightweight renderer that layers avatar assets in the PuruPuru PNGTuber format.
+ * Composites in the order back hair -> items (faceBack) -> expression -> front hair ->
+ * items (frontHairFront), with automatic blinking and mouth movement while speaking.
+ * When there is no avatar, shows a fallback SVG character using the same size calculation.
  */
 export function AvatarRenderer({
   avatar,
@@ -22,7 +22,7 @@ export function AvatarRenderer({
   maxHeight,
 }: {
   avatar?: AvatarInfo;
-  /** フォールバック表示用の名前（配色と名札に使う） */
+  /** Name for the fallback display (used for colors and the nameplate). */
   name?: string;
   speaking: boolean;
   active?: boolean;
@@ -33,7 +33,7 @@ export function AvatarRenderer({
   const [blink, setBlink] = useState(false);
   const mouthPhase = useRef(0);
 
-  // 口パク: speaking の間 closed → half → open → half を巡回
+  // Mouth: while speaking, cycle closed -> half -> open -> half.
   useEffect(() => {
     if (!speaking) {
       setMouth("closed");
@@ -47,7 +47,7 @@ export function AvatarRenderer({
     return () => clearInterval(timer);
   }, [speaking]);
 
-  // 自動まばたき: 2〜6秒間隔で 130ms 目を閉じる
+  // Auto-blink: close the eyes for 130ms every 2-6 seconds.
   useEffect(() => {
     let alive = true;
     let timer: ReturnType<typeof setTimeout>;
@@ -88,7 +88,7 @@ export function AvatarRenderer({
         title={name}
       >
         <div className="avatar-inner">
-          <FbAvatar name={name ?? "？"} speaking={speaking} />
+          <FbAvatar name={name ?? "?"} speaking={speaking} />
         </div>
       </div>
     );

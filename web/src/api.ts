@@ -3,10 +3,12 @@ import type {
   AvatarInfo,
   FormatDefinition,
   HandoutResponse,
+  Lang,
   MatchDetail,
   MatchEvent,
   MatchState,
   MatchSummary,
+  Provider,
   TeamKey,
 } from "@debate/shared";
 
@@ -25,7 +27,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 export const fetchFormats = () => api<FormatDefinition[]>("/api/formats");
 export const fetchAvatars = () => api<AvatarInfo[]>("/api/avatars");
 export const fetchProviders = () =>
-  api<{ providers: { id: string; label: string }[]; ttsAvailable: boolean }>("/api/providers");
+  api<{ providers: { id: Provider }[]; tts: Record<Lang, boolean> }>("/api/providers");
 export const fetchMatches = () => api<MatchSummary[]>("/api/matches");
 export const fetchMatch = (id: string) => api<MatchDetail>(`/api/matches/${id}`);
 export const fetchHandout = (id: string, team: TeamKey) =>
@@ -43,7 +45,7 @@ export interface LiveMatch {
   refresh: () => void;
 }
 
-/** 試合詳細 + SSE によるライブ更新 */
+/** Match detail plus live updates over SSE. */
 export function useLiveMatch(id: string): LiveMatch {
   const [detail, setDetail] = useState<MatchDetail | null>(null);
   const [events, setEvents] = useState<MatchEvent[]>([]);
@@ -57,7 +59,7 @@ export function useLiveMatch(id: string): LiveMatch {
         setDetail(d);
         setState(d.state);
         setEvents((prev) => {
-          // 既に SSE で先行しているかもしれないので、末尾 seq が進んでいる方を採用
+          // SSE may already be ahead, so keep whichever has the further-along last seq.
           const prevLast = prev[prev.length - 1]?.seq ?? -1;
           const nextLast = d.events[d.events.length - 1]?.seq ?? -1;
           return nextLast >= prevLast ? d.events : prev;
@@ -78,7 +80,7 @@ export function useLiveMatch(id: string): LiveMatch {
       if (ev.seq <= seenSeq.current) return;
       seenSeq.current = ev.seq;
       setEvents((prev) => [...prev, ev]);
-      // 判定・封印・終了系のイベントでは詳細（verdicts / review / seals）を取り直す
+      // Refetch detail (verdicts / review / seals) on judging / sealing / finishing events.
       if (["seal", "vote", "result", "review-ready", "phase"].includes(ev.type)) {
         refresh();
       }
@@ -87,7 +89,7 @@ export function useLiveMatch(id: string): LiveMatch {
       setState(JSON.parse((raw as MessageEvent).data) as MatchState);
     });
     es.onerror = () => {
-      // 自動再接続に任せる
+      // Leave it to the automatic reconnection.
     };
     return () => es.close();
   }, [id, refresh]);

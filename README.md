@@ -15,6 +15,9 @@ evidence handling, rebuttal, comparative weighing, and judging.
 
 ## Features
 
+- **Japanese / English** toggle on the setup screen switches the whole experience — UI, the
+  debate/judge/review prompts, and TTS. The language is saved in the browser (default Japanese)
+  and baked into each match at creation, so replays stay consistent.
 - **Preparation phase** allows web research; each team independently builds a handout
   (`handout.md` + `evidence.json`).
 - At the end of prep the material is **sealed**: per-file SHA-256 plus a root hash are shown,
@@ -40,7 +43,10 @@ evidence handling, rebuttal, comparative weighing, and judging.
   (OpenCode) CLIs installed and authenticated
 - Optional avatars: assets placed under `assets/avatars/` (PuruPuru PNGTuber folder format);
   without them, built-in SVG fallback characters are shown
-- Optional TTS: PowerShell (Windows) to run the setup script; works without it (silent mode)
+- Optional TTS: PowerShell (Windows) to run the setup script; works without it (silent mode).
+  `scripts/setup-tts.ps1` provisions a Japanese voice (Tsukuyomi-chan) under
+  `assets/tts/models/ja/` and an English voice under `assets/tts/models/en/`; the server picks
+  the voice by the match's language, and any language without a model simply plays silently.
 
 ### How the agent CLIs are used
 
@@ -87,9 +93,9 @@ Then open **http://localhost:56173**.
 
 ## Usage
 
-1. **Setup screen** — enter a resolution, configure each team (provider, model, reasoning
-   mode, member count, council / role-division mode, captain, avatar) and the judges
-   (1 / 3 / 5), then start the match.
+1. **Setup screen** — pick the language (JA / EN toggle, top right), enter a resolution,
+   configure each team (provider, model, reasoning mode, member count, council / role-division
+   mode, captain, avatar) and the judges (1 / 3 / 5), then start the match.
 2. **Arena screen** — watch live: preparation → seal (hash shown) → the eight speech parts →
    judging. Click a citation chip in the speech log to jump to that evidence entry.
 3. **Result screen** — winner, each judge's vote and reasoning, and the post-match review.

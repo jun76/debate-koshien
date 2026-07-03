@@ -8,6 +8,7 @@ import {
   FORMATS,
   type AgentConfig,
   type HandoutResponse,
+  type Lang,
   type MatchConfig,
   type MatchDetail,
   type MemberRole,
@@ -16,6 +17,7 @@ import {
   type TeamKey,
 } from "@debate/shared";
 import { listAvatars } from "./avatars.js";
+import { serverStrings, type ServerStrings } from "./i18n.js";
 import { ASSETS_DIR, DATA_DIR, WEB_DIST, matchPaths } from "./paths.js";
 import { abortMatch, isRunning, startMatch } from "./runner.js";
 import {
@@ -35,7 +37,7 @@ import { ttsAvailable } from "./tts.js";
 
 const app = new Hono();
 
-/* ---------- 基本情報 ---------- */
+/* ---------- Basic info ---------- */
 
 app.get("/api/health", (c) => c.json({ ok: true }));
 
@@ -45,17 +47,13 @@ app.get("/api/avatars", (c) => c.json(listAvatars()));
 
 app.get("/api/providers", (c) =>
   c.json({
-    providers: [
-      { id: "mock", label: "Mock（動作確認用・即応答）" },
-      { id: "claude", label: "Claude Code" },
-      { id: "codex", label: "Codex" },
-      { id: "opencode", label: "OpenCode" },
-    ],
-    ttsAvailable: ttsAvailable(),
+    // Provider display labels are localized on the web side; the server returns ids only.
+    providers: [{ id: "mock" }, { id: "claude" }, { id: "codex" }, { id: "opencode" }],
+    tts: { ja: ttsAvailable("ja"), en: ttsAvailable("en") },
   }),
 );
 
-/* ---------- 試合作成 ---------- */
+/* ---------- Match creation ---------- */
 
 interface MemberPayload {
   name?: string;
@@ -70,7 +68,7 @@ interface TeamPayload {
   mode: "council" | "roles";
   members: MemberPayload[];
   captainIndex?: number;
-  roles?: Record<string, MemberRole>; // index (文字列) → 役割
+  roles?: Record<string, MemberRole>; // index (string) -> role
 }
 
 interface CreateMatchPayload {
@@ -80,6 +78,7 @@ interface CreateMatchPayload {
   judges: MemberPayload[];
   reviewer?: MemberPayload;
   formatId: string;
+  lang?: Lang;
   tts?: boolean;
   autoAdvance?: boolean;
   demo?: boolean;
@@ -87,7 +86,7 @@ interface CreateMatchPayload {
 
 const PROVIDERS: Provider[] = ["mock", "claude", "codex", "opencode"];
 
-function buildTeam(team: TeamKey, p: TeamPayload, avatarIds: string[], avatarCursor: { i: number }): TeamConfig {
+function buildTeam(team: TeamKey, p: TeamPayload, avatarIds: string[], avatarCursor: { i: number }, t: ServerStrings): TeamConfig {
   const members: AgentConfig[] = p.members.map((m, i) => ({
     id: `${team}${i + 1}`,
     name: m.name?.trim() || `${m.provider}-${team}${i + 1}`,
@@ -102,7 +101,7 @@ function buildTeam(team: TeamKey, p: TeamPayload, avatarIds: string[], avatarCur
     if (member) roles[member.id] = role;
   }
   return {
-    name: p.name?.trim() || `チーム${team}`,
+    name: p.name?.trim() || t.defaultTeamName(team),
     mode: p.mode,
     members,
     captainId: members[Math.min(p.captainIndex ?? 0, members.length - 1)]?.id,
@@ -110,29 +109,31 @@ function buildTeam(team: TeamKey, p: TeamPayload, avatarIds: string[], avatarCur
   };
 }
 
-function validatePayload(p: CreateMatchPayload): string[] {
+function validatePayload(p: CreateMatchPayload, t: ServerStrings): string[] {
   const errors: string[] = [];
-  if (!p.topic?.trim()) errors.push("論題を入力してください");
-  if (!FORMATS.some((f) => f.id === p.formatId)) errors.push("フォーマットが不正です");
+  if (!p.topic?.trim()) errors.push(t.errTopicRequired);
+  if (!FORMATS.some((f) => f.id === p.formatId)) errors.push(t.errBadFormat);
   for (const key of ["A", "B"] as TeamKey[]) {
-    const t = p.teams?.[key];
-    if (!t || !Array.isArray(t.members) || t.members.length < 1 || t.members.length > 5) {
-      errors.push(`チーム${key} のメンバーは1〜5人にしてください`);
+    const team = p.teams?.[key];
+    if (!team || !Array.isArray(team.members) || team.members.length < 1 || team.members.length > 5) {
+      errors.push(t.errTeamMemberCount(key));
       continue;
     }
-    for (const m of t.members) {
-      if (!PROVIDERS.includes(m.provider)) errors.push(`チーム${key} に不正なプロバイダ: ${m.provider}`);
+    for (const m of team.members) {
+      if (!PROVIDERS.includes(m.provider)) errors.push(t.errBadProvider(key, m.provider));
     }
   }
   if (!Array.isArray(p.judges) || p.judges.length < 1 || p.judges.length % 2 === 0) {
-    errors.push("審査員は奇数人（1・3・5人）にしてください");
+    errors.push(t.errOddJudges);
   }
   return errors;
 }
 
 app.post("/api/matches", async (c) => {
   const payload = (await c.req.json()) as CreateMatchPayload;
-  const errors = validatePayload(payload);
+  const lang: Lang = payload.lang === "en" ? "en" : "ja";
+  const t = serverStrings(lang);
+  const errors = validatePayload(payload, t);
   if (errors.length > 0) return c.json({ errors }, 400);
 
   const avatarIds = listAvatars().map((a) => a.id);
@@ -151,12 +152,12 @@ app.post("/api/matches", async (c) => {
     createdAt: new Date().toISOString(),
     affirmative,
     teams: {
-      A: buildTeam("A", payload.teams.A, avatarIds, cursor),
-      B: buildTeam("B", payload.teams.B, avatarIds, cursor),
+      A: buildTeam("A", payload.teams.A, avatarIds, cursor, t),
+      B: buildTeam("B", payload.teams.B, avatarIds, cursor, t),
     },
     judges: payload.judges.map((j, i) => ({
       id: `J${i + 1}`,
-      name: j.name?.trim() || `審査員${i + 1}（${j.provider}）`,
+      name: j.name?.trim() || t.defaultJudgeName(i + 1, j.provider),
       provider: j.provider,
       model: j.model?.trim() || undefined,
       reasoningEffort: j.reasoningEffort?.trim() || undefined,
@@ -164,14 +165,15 @@ app.post("/api/matches", async (c) => {
     })),
     reviewer: {
       id: "reviewer",
-      name: payload.reviewer?.name?.trim() || `解説（${payload.reviewer?.provider ?? "mock"}）`,
+      name: payload.reviewer?.name?.trim() || t.defaultReviewerName(payload.reviewer?.provider ?? "mock"),
       provider: payload.reviewer?.provider ?? "mock",
       model: payload.reviewer?.model?.trim() || undefined,
       reasoningEffort: payload.reviewer?.reasoningEffort?.trim() || undefined,
     },
     formatId: payload.formatId,
-    tts: (payload.tts ?? true) && ttsAvailable(),
-    // デモモードは「全生成 → 一気に再生」なので必ず自動進行にする
+    lang,
+    tts: (payload.tts ?? true) && ttsAvailable(lang),
+    // Demo mode is "generate everything, then play it all back", so it always auto-advances.
     autoAdvance: payload.demo ? true : (payload.autoAdvance ?? true),
     demo: payload.demo ?? false,
     limits: { prepMaxCalls: 12, fixRetries: 2, regenerateRetries: 1 },
@@ -181,7 +183,7 @@ app.post("/api/matches", async (c) => {
   return c.json({ id, config });
 });
 
-/* ---------- 試合の取得・進行 ---------- */
+/* ---------- Match retrieval & progression ---------- */
 
 app.get("/api/matches", (c) => c.json(listMatches()));
 
@@ -196,20 +198,21 @@ app.get("/api/matches/:id", (c) => {
     seals: { A: getSeal(id, "A"), B: getSeal(id, "B") },
     verdicts: getVerdicts(id),
     review: getReview(id),
-    ttsAvailable: ttsAvailable(),
+    ttsAvailable: ttsAvailable(config.lang),
   };
   return c.json(detail);
 });
 
 app.delete("/api/matches/:id", (c) => {
   const id = c.req.param("id");
+  const t = serverStrings(getConfig(id)?.lang ?? "ja");
   if (isRunning(id)) abortMatch(id);
   try {
     const deleted = deleteMatch(id);
-    if (!deleted) return c.json({ error: "試合が見つかりません" }, 404);
+    if (!deleted) return c.json({ error: t.deleteNotFound }, 404);
     return c.json({ ok: true });
   } catch (e) {
-    return c.json({ error: `削除に失敗しました: ${e instanceof Error ? e.message : String(e)}` }, 500);
+    return c.json({ error: t.deleteFailed(e instanceof Error ? e.message : String(e)) }, 500);
   }
 });
 
@@ -258,7 +261,7 @@ app.get("/api/matches/:id/events", (c) => {
   });
 });
 
-/* ---------- ハンドアウト・音声 ---------- */
+/* ---------- Handouts & audio ---------- */
 
 app.get("/api/matches/:id/handouts/:team", (c) => {
   const id = c.req.param("id");
@@ -289,7 +292,7 @@ app.get("/api/matches/:id/audio/:refId", (c) => {
   });
 });
 
-/* ---------- 静的配信（アバター素材・ビルド済み Web UI） ---------- */
+/* ---------- Static serving (avatar assets, built web UI) ---------- */
 
 const MIME: Record<string, string> = {
   ".png": "image/png",
@@ -323,7 +326,7 @@ function resolveInside(baseDir: string, relPath: string): string | null {
 app.get("/assets/*", (c) => {
   const rel = decodeURIComponent(c.req.path.replace(/^\/assets\//, ""));
 
-  // Vite の本番ビルドも /assets/*.js|css を使う。アバター素材より先に配信する。
+  // Vite's production build also uses /assets/*.js|css. Serve it before avatar assets.
   const webAsset = resolveInside(path.join(WEB_DIST, "assets"), rel);
   if (webAsset) {
     const webRes = serveFile(webAsset);
@@ -348,11 +351,12 @@ app.get("*", (c) => {
     const index = serveFile(path.join(WEB_DIST, "index.html"));
     if (index) return index;
   }
-  return c.text("web UI は未ビルドです。開発時は http://localhost:56173 を使ってください。", 404);
+  return c.text("The web UI is not built. During development, use http://localhost:56173.", 404);
 });
 
 ensureDir(DATA_DIR);
 const port = Number(process.env.PORT ?? 8787);
 serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }, (info) => {
-  console.log(`debate server: http://127.0.0.1:${info.port} (tts: ${ttsAvailable() ? "available" : "unavailable"})`);
+  const tts = `ja: ${ttsAvailable("ja") ? "on" : "off"}, en: ${ttsAvailable("en") ? "on" : "off"}`;
+  console.log(`debate server: http://127.0.0.1:${info.port} (tts: ${tts})`);
 });

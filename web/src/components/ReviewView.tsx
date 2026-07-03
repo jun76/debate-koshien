@@ -1,4 +1,5 @@
 import type { MatchConfig, Review } from "@debate/shared";
+import { useT } from "../i18n";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -10,7 +11,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function List({ items }: { items: string[] }) {
-  if (items.length === 0) return <p className="empty">（なし）</p>;
+  const t = useT();
+  if (items.length === 0) return <p className="empty">{t.common.none}</p>;
   return (
     <ul>
       {items.map((x, i) => (
@@ -21,17 +23,18 @@ function List({ items }: { items: string[] }) {
 }
 
 export function ReviewView({ config, review }: { config: MatchConfig; review: Review }) {
+  const t = useT();
   return (
     <div className="card review-view">
-      <h3>感想戦レビュー</h3>
-      <Section title="勝敗を決めた論点">
+      <h3>{t.review.title}</h3>
+      <Section title={t.review.decisive}>
         <List items={review.decisiveIssues} />
       </Section>
-      <Section title="流れが変わったポイント">
+      <Section title={t.review.turning}>
         <List items={review.turningPoints} />
       </Section>
       <div className="review-cols">
-        <Section title="強かった証拠">
+        <Section title={t.review.strong}>
           <ul>
             {review.strongEvidence.map((e, i) => (
               <li key={i}>
@@ -40,7 +43,7 @@ export function ReviewView({ config, review }: { config: MatchConfig; review: Re
             ))}
           </ul>
         </Section>
-        <Section title="弱かった証拠">
+        <Section title={t.review.weak}>
           <ul>
             {review.weakEvidence.map((e, i) => (
               <li key={i}>
@@ -50,24 +53,24 @@ export function ReviewView({ config, review }: { config: MatchConfig; review: Re
           </ul>
         </Section>
       </div>
-      <Section title="有効だった反駁">
+      <Section title={t.review.rebuttals}>
         <List items={review.effectiveRebuttals} />
       </Section>
-      <Section title="ハンドアウト外と疑われる主張">
+      <Section title={t.review.outOfHandout}>
         <List items={review.suspectedOutOfHandout} />
       </Section>
-      <Section title="審査員間の判断の違い">
+      <Section title={t.review.judgeDiff}>
         <p>{review.judgeDifferences}</p>
       </Section>
-      <Section title="準備資料の質の比較">
+      <Section title={t.review.prep}>
         <p>{review.preparationComparison}</p>
       </Section>
-      <Section title="チーム運用方式の比較">
+      <Section title={t.review.teamOp}>
         <p>{review.teamOperationComparison}</p>
       </Section>
       <div className="review-cols">
         {(["A", "B"] as const).map((team) => (
-          <Section key={team} title={`${config.teams[team].name} の改善点`}>
+          <Section key={team} title={t.review.improvementsOf(config.teams[team].name)}>
             <List items={review.improvements[team] ?? []} />
           </Section>
         ))}

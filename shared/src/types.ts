@@ -4,6 +4,9 @@ export type Side = "affirmative" | "negative";
 
 export type Provider = "mock" | "claude" | "codex" | "opencode";
 
+/** UI / content language. Drives both the interface chrome and the language a match is run in. */
+export type Lang = "ja" | "en";
+
 export interface AgentConfig {
   id: string;
   name: string;
@@ -54,6 +57,8 @@ export interface MatchConfig {
   judges: AgentConfig[];
   reviewer: AgentConfig;
   formatId: string;
+  /** UI / content language the match is run in (prompts, status text, and TTS voice). */
+  lang: Lang;
   /** Whether to synthesize audio (auto-disabled if piper-plus is not set up). */
   tts: boolean;
   /** Whether to advance phases automatically. */
@@ -78,11 +83,11 @@ export type Phase =
   | "aborted"
   | "error";
 
-/** いま生成中（思考中）のエージェント。UI がアバター付近にバルーンを出すための情報 */
+/** The agent currently generating (thinking). Used by the UI to show a balloon near its avatar. */
 export interface ThinkingInfo {
   scope: "team" | "judge" | "reviewer";
   team?: TeamKey;
-  /** 思考中のエージェント ID（チームメンバー ID / 審査員 ID / reviewer） */
+  /** IDs of the thinking agents (team member IDs / judge IDs / reviewer). */
   agentIds: string[];
   label: string;
 }
@@ -92,7 +97,7 @@ export interface MatchState {
   updatedAt: string;
   /** Fine-grained progress text shown while running. */
   progress?: string;
-  /** 進行主体ごとの思考中情報（キー: "team-A" / "team-B" / "judge" / "reviewer"） */
+  /** Thinking info per actor (keys: "team-A" / "team-B" / "judge" / "reviewer"). */
   thinking?: Record<string, ThinkingInfo>;
   error?: string;
 }
@@ -103,7 +108,6 @@ export type PartKind = "constructive" | "cross-examination" | "rebuttal";
 
 export interface FormatPart {
   id: string;
-  label: string;
   side: Side;
   kind: PartKind;
   /** Character limit for constructive / rebuttal parts. */
@@ -114,10 +118,12 @@ export interface FormatPart {
   maxCharsPerUtterance?: number;
 }
 
+/**
+ * Structural definition of a debate format. Display strings (name / description / part labels)
+ * are language-dependent and live in the i18n module, keyed by format id / part id.
+ */
 export interface FormatDefinition {
   id: string;
-  name: string;
-  description: string;
   parts: FormatPart[];
 }
 
@@ -364,16 +370,3 @@ export function teamOfSide(config: MatchConfig, side: Side): TeamKey {
   if (side === "affirmative") return config.affirmative;
   return config.affirmative === "A" ? "B" : "A";
 }
-
-export const SIDE_LABEL: Record<Side, string> = {
-  affirmative: "肯定側",
-  negative: "否定側",
-};
-
-export const ROLE_LABEL: Record<MemberRole, string> = {
-  researcher: "調査担当",
-  constructive: "立論担当",
-  questioner: "質疑担当",
-  rebuttal: "反駁担当",
-  strategist: "戦略統括",
-};

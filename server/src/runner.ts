@@ -3,9 +3,9 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   getFormat,
+  partLabel,
   sideOfTeam,
   teamOfSide,
-  SIDE_LABEL,
   type EvidenceEntry,
   type FormatPart,
   type MatchConfig,
@@ -17,7 +17,8 @@ import {
 } from "@debate/shared";
 import { invokeAgent } from "./adapters/index.js";
 import { checkSpeech, detectWebToolUsage, parseEvidence } from "./checks.js";
-import { sealDirectory, verifySeal } from "./hash.js";
+import { serverStrings } from "./i18n.js";
+import { sealDirectory, verifySeal, type VerifyResult } from "./hash.js";
 import { matchPaths } from "./paths.js";
 import { judgePrompt, renderPublicLog, reviewPrompt } from "./prompts.js";
 import {
@@ -46,7 +47,7 @@ interface Running {
 
 const running = new Map<string, Running>();
 
-/** 試合ごとの未完了 TTS ジョブ。デモモードで「全音声出揃い」を待つために持つ */
+/** Outstanding TTS jobs per match. Held so demo mode can wait for "all audio ready". */
 const ttsJobs = new Map<string, Promise<void>[]>();
 
 export function isRunning(matchId: string): boolean {
@@ -60,16 +61,17 @@ export function abortMatch(matchId: string): boolean {
   return true;
 }
 
-/** 現在のフェーズから試合を進める（非同期で走らせ、この関数はすぐ返る） */
+/** Advance the match from its current phase (runs asynchronously; returns immediately). */
 export function startMatch(matchId: string): { ok: boolean; message?: string } {
-  if (running.has(matchId)) return { ok: false, message: "既に進行中" };
   const config = getConfig(matchId);
-  if (!config) return { ok: false, message: "試合が存在しない" };
+  const t = serverStrings(config?.lang ?? "ja");
+  if (running.has(matchId)) return { ok: false, message: t.alreadyRunning };
+  if (!config) return { ok: false, message: t.matchNotExist };
   let phase = getState(matchId).phase;
-  if (phase === "finished" || phase === "aborted") return { ok: false, message: `フェーズ ${phase} からは進行できない` };
+  if (phase === "finished" || phase === "aborted") return { ok: false, message: t.cannotAdvance(phase) };
   if (phase === "error") {
     phase = getSeal(matchId, "A") && getSeal(matchId, "B") ? "sealed" : "setup";
-    setPhase(matchId, phase, "エラー状態から再試行します");
+    setPhase(matchId, phase, t.retryFromError);
   }
 
   const r: Running = { aborted: false };
@@ -119,9 +121,10 @@ async function run(config: MatchConfig, ctl: RunControl): Promise<void> {
   }
 }
 
-/* ---------- 準備フェーズ ---------- */
+/* ---------- Preparation phase ---------- */
 
 async function runPrep(config: MatchConfig, ctl: RunControl): Promise<void> {
+  const t = serverStrings(config.lang);
   const format = getFormat(config.formatId);
   setPhase(config.id, "preparing");
 
@@ -132,7 +135,7 @@ async function runPrep(config: MatchConfig, ctl: RunControl): Promise<void> {
       const emitStatus = (status: string) => {
         appendEvent(config.id, { type: "prep", team, status });
       };
-      emitStatus(`準備開始（${SIDE_LABEL[side]}）`);
+      emitStatus(t.prepStart(side));
       await prepareTeamHandout({
         config,
         team,
@@ -144,7 +147,7 @@ async function runPrep(config: MatchConfig, ctl: RunControl): Promise<void> {
       });
       ctl.checkAborted();
 
-      // 成果物を封印用ディレクトリへ複製し、封印する
+      // Copy the artifacts into the seal directory and seal them.
       const workspace = matchPaths.prepWorkspace(config.id, team);
       const handoutDir = matchPaths.handoutDir(config.id, team);
       ensureDir(handoutDir);
@@ -154,14 +157,14 @@ async function runPrep(config: MatchConfig, ctl: RunControl): Promise<void> {
       const seal = sealDirectory(handoutDir, team);
       saveSeal(config.id, seal);
       appendEvent(config.id, { type: "seal", team, rootHash: seal.rootHash, fileCount: seal.files.length });
-      emitStatus("ハンドアウト封印済み");
+      emitStatus(t.handoutSealed);
     }),
   );
 
-  setPhase(config.id, "sealed", "両チームのハンドアウトを封印。以降 Web 利用は禁止");
+  setPhase(config.id, "sealed", t.bothSealed);
 }
 
-/* ---------- ディベート本編 ---------- */
+/* ---------- Debate proper ---------- */
 
 interface TeamMaterial {
   handoutMd: string;
@@ -172,31 +175,41 @@ interface TeamMaterial {
 function loadSealedMaterial(config: MatchConfig, team: TeamKey): TeamMaterial {
   const handoutDir = matchPaths.handoutDir(config.id, team);
   const snapshotDir = matchPaths.sealedSnapshotDir(config.id, team);
-  // エージェントには封印済みスナップショットのコピーを渡し、原本には触れさせない
+  // Give the agent a copy of the sealed snapshot; never let it touch the original.
   ensureDir(snapshotDir);
   for (const f of ["handout.md", "evidence.json"]) {
     fs.copyFileSync(path.join(handoutDir, f), path.join(snapshotDir, f));
   }
   const handoutMd = fs.readFileSync(path.join(snapshotDir, "handout.md"), "utf8");
   const side = sideOfTeam(config, team);
-  const { evidence } = parseEvidence(fs.readFileSync(path.join(snapshotDir, "evidence.json"), "utf8"), side);
+  const { evidence } = parseEvidence(fs.readFileSync(path.join(snapshotDir, "evidence.json"), "utf8"), side, config.lang);
   return { handoutMd, evidence, snapshotDir };
 }
 
+/** Compose a human-readable detail string from a seal verification result. */
+function formatSealDetail(config: MatchConfig, result: VerifyResult): string {
+  const t = serverStrings(config.lang);
+  if (result.ok) return "";
+  if (result.diffs.length === 0) return t.rootMismatch;
+  return result.diffs.map((d) => t.sealDiff(d)).join(", ");
+}
+
 function verifyTeamSeal(config: MatchConfig, team: TeamKey, when: "debate-start" | "judging-start"): void {
+  const t = serverStrings(config.lang);
   const seal = getSeal(config.id, team);
   if (!seal) {
-    appendEvent(config.id, { type: "hash-check", team, when, ok: false, detail: "封印記録が存在しない" });
+    appendEvent(config.id, { type: "hash-check", team, when, ok: false, detail: t.sealMissing });
     return;
   }
   const result = verifySeal(matchPaths.handoutDir(config.id, team), seal);
-  appendEvent(config.id, { type: "hash-check", team, when, ok: result.ok, detail: result.detail });
+  const detail = formatSealDetail(config, result);
+  appendEvent(config.id, { type: "hash-check", team, when, ok: result.ok, detail });
   if (!result.ok) {
     appendEvent(config.id, {
       type: "warning",
       team,
       kind: "hash-mismatch",
-      detail: `チーム${team} のハンドアウトが封印後に変更されている: ${result.detail}`,
+      detail: t.handoutTampered(team, detail),
     });
   }
 }
@@ -206,6 +219,7 @@ function publicLogOf(matchId: string): SpeechEvent[] {
 }
 
 async function runDebate(config: MatchConfig, ctl: RunControl): Promise<void> {
+  const t = serverStrings(config.lang);
   const format = getFormat(config.formatId);
   if (getState(config.id).phase !== "debating") {
     setPhase(config.id, "debating");
@@ -220,6 +234,7 @@ async function runDebate(config: MatchConfig, ctl: RunControl): Promise<void> {
 
   for (const part of format.parts) {
     ctl.checkAborted();
+    const label = partLabel(part.id, config.lang);
     const done = publicLogOf(config.id).filter((e) => e.partId === part.id);
 
     if (part.kind === "cross-examination") {
@@ -236,7 +251,7 @@ async function runDebate(config: MatchConfig, ctl: RunControl): Promise<void> {
         if (questions.length > ex) {
           questionText = questions[ex].text;
         } else {
-          setProgress(config.id, `${part.label}: 質問 ${ex + 1}/${max}`);
+          setProgress(config.id, t.progressQuestion(label, ex + 1, max));
           questionText = (await emitUtterance(config, ctl, materials, {
             part,
             team: questionerTeam,
@@ -244,7 +259,7 @@ async function runDebate(config: MatchConfig, ctl: RunControl): Promise<void> {
             exchangeIndex: ex,
           })).text;
         }
-        setProgress(config.id, `${part.label}: 応答 ${ex + 1}/${max}`);
+        setProgress(config.id, t.progressAnswer(label, ex + 1, max));
         await emitUtterance(config, ctl, materials, {
           part,
           team: answererTeam,
@@ -257,7 +272,7 @@ async function runDebate(config: MatchConfig, ctl: RunControl): Promise<void> {
       }
     } else {
       if (done.length > 0) continue;
-      setProgress(config.id, `${part.label} を生成中`);
+      setProgress(config.id, t.progressGenerating(label));
       await emitUtterance(config, ctl, materials, {
         part,
         team: teamOfSide(config, part.side),
@@ -266,7 +281,7 @@ async function runDebate(config: MatchConfig, ctl: RunControl): Promise<void> {
     }
   }
 
-  setPhase(config.id, "judging", "全パート終了。審査に入る");
+  setPhase(config.id, "judging", t.allPartsDone);
 }
 
 async function emitUtterance(
@@ -310,6 +325,7 @@ async function emitUtterance(
     side,
     kind: opts.kind,
     part: opts.part,
+    lang: config.lang,
     ownEvidence: own.evidence,
     opponentEvidence: opponent.evidence,
     overLengthOriginal: result.overLengthOriginal,
@@ -321,7 +337,7 @@ async function emitUtterance(
     id: randomUUID(),
     kind: opts.kind,
     partId: opts.part.id,
-    partLabel: opts.part.label,
+    partLabel: partLabel(opts.part.id, config.lang),
     exchangeIndex: opts.exchangeIndex,
     side,
     team: opts.team,
@@ -338,12 +354,12 @@ async function emitUtterance(
   return ev;
 }
 
-/** 発言確定後にバックグラウンドで音声合成し、完了したら audio イベントを流す */
+/** After a speech is finalized, synthesize audio in the background and emit an audio event when done. */
 function scheduleTts(config: MatchConfig, ev: SpeechEvent): void {
-  if (!config.tts || !ttsAvailable()) return;
+  if (!config.tts || !ttsAvailable(config.lang)) return;
   const audioDir = matchPaths.audioDir(config.id);
   const wavPath = path.join(audioDir, `${ev.id}.wav`);
-  const job = enqueueSynthesis(speakableText(ev.text), wavPath)
+  const job = enqueueSynthesis(speakableText(ev.text), wavPath, config.lang)
     .then((durationMs) => {
       if (durationMs === null) return;
       appendEvent(config.id, { type: "audio", refId: ev.id, file: `${ev.id}.wav`, durationMs });
@@ -356,14 +372,14 @@ function scheduleTts(config: MatchConfig, ev: SpeechEvent): void {
   ttsJobs.set(config.id, list);
 }
 
-/* ---------- 審査 ---------- */
+/* ---------- Judging ---------- */
 
 function extractJsonObject(text: string): unknown | undefined {
   const trimmed = text.trim();
   try {
     return JSON.parse(trimmed);
   } catch {
-    // コードフェンスや前置きが混ざった場合に備え、最初の { から最後の } を試す
+    // In case code fences or a preamble are mixed in, try from the first { to the last }.
     const start = trimmed.indexOf("{");
     const end = trimmed.lastIndexOf("}");
     if (start >= 0 && end > start) {
@@ -421,11 +437,12 @@ function normalizeVerdict(raw: unknown, judgeId: string, judgeName: string): Ver
   };
 }
 
-function collectWarningStrings(matchId: string): string[] {
+function collectWarningStrings(config: MatchConfig): string[] {
+  const t = serverStrings(config.lang);
   const out: string[] = [];
-  for (const ev of readEvents(matchId)) {
+  for (const ev of readEvents(config.id)) {
     if (ev.type === "speech") {
-      for (const w of ev.warnings) out.push(`${ev.partLabel}（${SIDE_LABEL[ev.side]}）: ${w.detail}`);
+      for (const w of ev.warnings) out.push(t.warningLine(ev.partLabel, ev.side, w.detail));
     } else if (ev.type === "warning") {
       out.push(ev.detail);
     }
@@ -433,13 +450,15 @@ function collectWarningStrings(matchId: string): string[] {
   return out;
 }
 
-function collectHashCheckStrings(matchId: string): string[] {
-  return readEvents(matchId)
+function collectHashCheckStrings(config: MatchConfig): string[] {
+  const t = serverStrings(config.lang);
+  return readEvents(config.id)
     .filter((e) => e.type === "hash-check")
-    .map((e) => `チーム${e.team}（${e.when}）: ${e.ok ? "一致" : `不一致 ${e.detail ?? ""}`}`);
+    .map((e) => t.hashCheckLine(e.team, e.when, e.ok, e.detail ?? ""));
 }
 
 async function runJudging(config: MatchConfig, ctl: RunControl): Promise<void> {
+  const t = serverStrings(config.lang);
   if (getVerdicts(config.id).length === 0) {
     verifyTeamSeal(config, "A", "judging-start");
     verifyTeamSeal(config, "B", "judging-start");
@@ -459,19 +478,20 @@ async function runJudging(config: MatchConfig, ctl: RunControl): Promise<void> {
     negativeHandout: neg.handoutMd,
     negativeEvidence: neg.evidence,
     publicLog: publicLogOf(config.id),
-    hashChecks: collectHashCheckStrings(config.id),
-    warnings: collectWarningStrings(config.id),
+    hashChecks: collectHashCheckStrings(config),
+    warnings: collectWarningStrings(config),
+    lang: config.lang,
   });
 
   const existing = new Set(getVerdicts(config.id).map((v) => v.judgeId));
   for (const judge of config.judges) {
     if (existing.has(judge.id)) continue;
     ctl.checkAborted();
-    setProgress(config.id, `審査員 ${judge.name} が判定中`);
+    setProgress(config.id, t.judgeDeciding(judge.name));
     updateThinking(config.id, "judge", {
       scope: "judge",
       agentIds: [judge.id],
-      label: "判定を検討中",
+      label: t.thinkJudge,
     });
     const workspace = matchPaths.judgeWorkspace(config.id, judge.id);
     ensureDir(workspace);
@@ -483,13 +503,14 @@ async function runJudging(config: MatchConfig, ctl: RunControl): Promise<void> {
         agent: judge,
         matchId: config.id,
         label: `judge-${judge.name}`,
-        instructions: attempt === 0 ? prompt : `${prompt}\n\n（前回の出力は JSON として解釈できませんでした。指定した JSON だけを出力してください。）`,
+        instructions: attempt === 0 ? prompt : `${prompt}${t.jsonRetrySuffix}`,
         workspaceDir: workspace,
         allowWeb: false,
         needsFileTools: false,
         timeoutMs: JUDGE_TIMEOUT_MS,
         mockHints: {
           topic: config.topic,
+          lang: config.lang,
           seed: judge.id,
           evidenceIds: aff.evidence.map((e) => e.id),
           opponentEvidenceIds: neg.evidence.map((e) => e.id),
@@ -498,7 +519,7 @@ async function runJudging(config: MatchConfig, ctl: RunControl): Promise<void> {
       verdict = normalizeVerdict(extractJsonObject(res.output), judge.id, judge.name);
     }
     updateThinking(config.id, "judge", null);
-    if (!verdict) throw new Error(`審査員 ${judge.name} の判定を JSON として解釈できない`);
+    if (!verdict) throw new Error(t.judgeParseError(judge.name));
 
     saveVerdict(config.id, verdict);
     appendEvent(config.id, {
@@ -521,10 +542,10 @@ async function runJudging(config: MatchConfig, ctl: RunControl): Promise<void> {
     votes: { affirmative: affVotes, negative: negVotes },
   });
 
-  setPhase(config.id, "reviewing", "判定確定。感想戦レビューを生成中");
+  setPhase(config.id, "reviewing", t.verdictConfirmed);
 }
 
-/* ---------- 試合後レビュー ---------- */
+/* ---------- Post-match review ---------- */
 
 function normalizeReview(raw: unknown): Review | undefined {
   if (typeof raw !== "object" || raw === null) return undefined;
@@ -555,11 +576,12 @@ function normalizeReview(raw: unknown): Review | undefined {
 }
 
 async function runReview(config: MatchConfig, ctl: RunControl): Promise<void> {
+  const t = serverStrings(config.lang);
   const format = getFormat(config.formatId);
   const events = readEvents(config.id);
   const deliberations = events
     .filter((e) => e.type === "deliberation")
-    .map((e) => `【チーム${e.team} / ${e.partId} / ${e.memberName}（${e.label}）】\n${e.text}`)
+    .map((e) => `【${t.defaultTeamName(e.team)} / ${e.partId} / ${e.memberName}（${e.label}）】\n${e.text}`)
     .join("\n\n");
   const verdicts = getVerdicts(config.id);
   const affTeamName = config.teams[config.affirmative].name;
@@ -574,6 +596,7 @@ async function runReview(config: MatchConfig, ctl: RunControl): Promise<void> {
     affirmativeTeamName: affTeamName,
     negativeTeamName: negTeamName,
     teamAKey: sideOfTeam(config, "A"),
+    lang: config.lang,
   });
 
   const workspace = matchPaths.judgeWorkspace(config.id, "reviewer");
@@ -582,7 +605,7 @@ async function runReview(config: MatchConfig, ctl: RunControl): Promise<void> {
   updateThinking(config.id, "reviewer", {
     scope: "reviewer",
     agentIds: [config.reviewer.id],
-    label: "感想戦レビューを執筆中",
+    label: t.thinkReviewer,
   });
   let review: Review | undefined;
   for (let attempt = 0; attempt < 2 && !review; attempt++) {
@@ -592,22 +615,22 @@ async function runReview(config: MatchConfig, ctl: RunControl): Promise<void> {
       agent: config.reviewer,
       matchId: config.id,
       label: "reviewer",
-      instructions: attempt === 0 ? prompt : `${prompt}\n\n（前回の出力は JSON として解釈できませんでした。指定した JSON だけを出力してください。）`,
+      instructions: attempt === 0 ? prompt : `${prompt}${t.jsonRetrySuffix}`,
       workspaceDir: workspace,
       allowWeb: false,
       needsFileTools: false,
       timeoutMs: JUDGE_TIMEOUT_MS,
-      mockHints: { topic: config.topic },
+      mockHints: { topic: config.topic, lang: config.lang },
     });
     review = normalizeReview(extractJsonObject(res.output));
   }
-  if (!review) throw new Error("レビューを JSON として解釈できない");
+  if (!review) throw new Error(t.reviewParseError);
 
   saveReview(config.id, review);
   appendEvent(config.id, { type: "review-ready" });
   if (config.demo) {
-    // デモモードでは finished = 「再生に必要な素材が全部揃った」の合図。全音声を待つ
-    setProgress(config.id, "音声合成の完了を待機中");
+    // In demo mode, finished = "all playback material is ready". Wait for every audio job.
+    setProgress(config.id, t.waitingAudio);
     await Promise.allSettled(ttsJobs.get(config.id) ?? []);
   }
   setPhase(config.id, "finished");

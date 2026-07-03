@@ -3,10 +3,12 @@ import {
   extractCitations,
   type EvidenceEntry,
   type FormatPart,
+  type Lang,
   type Side,
   type SpeechWarning,
 } from "@debate/shared";
 import type { ToolUsageRecord } from "./adapters/types.js";
+import { serverStrings } from "./i18n.js";
 
 const WEB_TOOL_NAMES = ["websearch", "webfetch", "web_search", "web_fetch", "fetch", "browser"];
 
@@ -22,32 +24,31 @@ export interface SpeechCheckResult {
 }
 
 /**
- * 発言の形式チェック。
- * - 参照された証拠 ID が封印済み evidence.json に存在するか
- *   （相手チームの証拠 ID への言及は、反論のための正当な参照として許可する）
- * - 文字数上限（超過分の切り詰めは呼び出し側で実施済みの前提で、超過事実の警告のみ）
- * - 立論・反駁で証拠参照がゼロでないか
+ * Formal check of a speech.
+ * - Whether the cited evidence IDs exist in the sealed evidence.json
+ *   (mentioning the opponent's evidence IDs is allowed as legitimate rebuttal reference).
+ * - Character limit (truncation is assumed already done by the caller; only warns of the excess).
+ * - Whether constructives / rebuttals have at least one evidence citation.
  */
 export function checkSpeech(opts: {
   text: string;
   side: Side;
   kind: "constructive" | "rebuttal" | "question" | "answer";
   part: FormatPart;
+  lang: Lang;
   ownEvidence: EvidenceEntry[];
   opponentEvidence?: EvidenceEntry[];
   overLengthOriginal?: number;
   webToolsUsed?: string[];
 }): SpeechCheckResult {
+  const t = serverStrings(opts.lang);
   const warnings: SpeechWarning[] = [];
   const citations = extractCitations(opts.text);
   const known = new Set([...opts.ownEvidence, ...(opts.opponentEvidence ?? [])].map((e) => e.id));
 
   for (const c of citations) {
     if (!known.has(c)) {
-      warnings.push({
-        kind: "unknown-evidence",
-        detail: `封印済み資料に存在しない証拠 ID [${c}] を参照した`,
-      });
+      warnings.push({ kind: "unknown-evidence", detail: t.warnUnknownEvidence(c) });
     }
   }
 
@@ -56,72 +57,64 @@ export function checkSpeech(opts: {
       ? opts.part.maxCharsPerUtterance
       : opts.part.maxChars;
   if (opts.overLengthOriginal !== undefined && max !== undefined) {
-    warnings.push({
-      kind: "over-length",
-      detail: `文字数上限 ${max} を超過（${opts.overLengthOriginal}字）したため切り詰めた`,
-    });
+    warnings.push({ kind: "over-length", detail: t.warnOverLength(max, opts.overLengthOriginal) });
   }
 
   if ((opts.kind === "constructive" || opts.kind === "rebuttal") && citations.length === 0) {
-    warnings.push({
-      kind: "no-citation",
-      detail: "証拠参照のない発言（事実主張の根拠が確認できない）",
-    });
+    warnings.push({ kind: "no-citation", detail: t.warnNoCitation });
   }
 
   for (const name of opts.webToolsUsed ?? []) {
-    warnings.push({
-      kind: "web-tool-used",
-      detail: `ディベート本編中に Web 系ツール（${name}）の使用が記録された`,
-    });
+    warnings.push({ kind: "web-tool-used", detail: t.warnWebTool(name) });
   }
 
   return { citations, warnings };
 }
 
-/** evidence.json のスキーマ検証。エラーメッセージの配列を返す（空なら合格） */
-export function validateEvidence(raw: unknown, side: Side): string[] {
+/** Schema validation of evidence.json. Returns an array of error messages (empty = valid). */
+export function validateEvidence(raw: unknown, side: Side, lang: Lang): string[] {
+  const t = serverStrings(lang);
   const errors: string[] = [];
-  if (!Array.isArray(raw)) return ["evidence.json はエントリの配列である必要がある"];
-  if (raw.length === 0) errors.push("証拠エントリが1件もない");
+  if (!Array.isArray(raw)) return [t.evidenceNotArray];
+  if (raw.length === 0) errors.push(t.evidenceEmpty);
   const prefix = side === "affirmative" ? "A" : "N";
   const seen = new Set<string>();
   raw.forEach((e, i) => {
     if (typeof e !== "object" || e === null) {
-      errors.push(`[${i}] オブジェクトではない`);
+      errors.push(t.evidenceNotObject(i));
       return;
     }
     const entry = e as Record<string, unknown>;
     const id = entry.id;
     if (typeof id !== "string" || !new RegExp(`^${prefix}-\\d{2}$`).test(id)) {
-      errors.push(`[${i}] id は「${prefix}-01」形式の文字列である必要がある（実際: ${JSON.stringify(id)}）`);
+      errors.push(t.evidenceBadId(i, prefix, JSON.stringify(id)));
     } else if (seen.has(id)) {
-      errors.push(`[${i}] id ${id} が重複している`);
+      errors.push(t.evidenceDupId(i, id));
     } else {
       seen.add(id);
     }
     if (typeof entry.claim !== "string" || entry.claim.length === 0) {
-      errors.push(`[${i}] claim（この証拠が支える主張）が必要`);
+      errors.push(t.evidenceNoClaim(i));
     }
     if (typeof entry.quote !== "string" || entry.quote.length === 0) {
-      errors.push(`[${i}] quote（出典からの引用・要約）が必要`);
+      errors.push(t.evidenceNoQuote(i));
     }
     const src = entry.source as Record<string, unknown> | undefined;
     if (typeof src !== "object" || src === null || typeof src.title !== "string") {
-      errors.push(`[${i}] source.title（出典タイトル）が必要`);
+      errors.push(t.evidenceNoSourceTitle(i));
     }
   });
   return errors;
 }
 
-export function parseEvidence(json: string, side: Side): { evidence: EvidenceEntry[]; errors: string[] } {
+export function parseEvidence(json: string, side: Side, lang: Lang): { evidence: EvidenceEntry[]; errors: string[] } {
   let raw: unknown;
   try {
     raw = JSON.parse(json);
   } catch (e) {
-    return { evidence: [], errors: [`evidence.json が JSON として不正: ${(e as Error).message}`] };
+    return { evidence: [], errors: [serverStrings(lang).evidenceBadJson((e as Error).message)] };
   }
-  const errors = validateEvidence(raw, side);
+  const errors = validateEvidence(raw, side, lang);
   return { evidence: errors.length === 0 ? (raw as EvidenceEntry[]) : [], errors };
 }
 

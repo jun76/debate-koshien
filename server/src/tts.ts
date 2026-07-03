@@ -1,16 +1,18 @@
 import fs from "node:fs";
 import path from "node:path";
+import type { Lang } from "@debate/shared";
 import { execCommand } from "./exec.js";
 import { TTS_DIR } from "./paths.js";
 
 /**
- * piper-plus による音声合成。
- * assets/tts/piper/piper.exe とつくよみちゃんモデルを scripts/setup-tts.ps1 で整備する前提。
- * 未整備ならアプリは音声なしで動作する（縮退）。
+ * Speech synthesis via piper-plus.
+ * Assumes assets/tts/piper/piper.exe plus a per-language voice model are provisioned by
+ * scripts/setup-tts.ps1. Models live under assets/tts/models/<lang>/ (*.onnx + config). If a
+ * given language is not provisioned, the app runs without audio for that language (degraded).
  */
 
 const PIPER_EXE = path.join(TTS_DIR, "piper", "piper.exe");
-const MODEL_DIR = path.join(TTS_DIR, "models");
+const MODELS_ROOT = path.join(TTS_DIR, "models");
 const OPENJTALK_DIC = path.join(TTS_DIR, "piper", "share", "open_jtalk", "dic");
 
 interface TtsPaths {
@@ -19,46 +21,52 @@ interface TtsPaths {
   config?: string;
 }
 
-let cached: TtsPaths | null | undefined;
+/**
+ * Resolve the model directory for a language. Back-compat: a legacy flat layout
+ * (assets/tts/models/*.onnx) is treated as the Japanese voice.
+ */
+function modelDirFor(lang: Lang): string {
+  const langDir = path.join(MODELS_ROOT, lang);
+  if (fs.existsSync(langDir)) return langDir;
+  if (lang === "ja") return MODELS_ROOT;
+  return langDir;
+}
 
-export function resolveTts(): TtsPaths | null {
+const cache = new Map<Lang, TtsPaths | null>();
+
+export function resolveTts(lang: Lang): TtsPaths | null {
+  const cached = cache.get(lang);
   if (cached !== undefined) return cached;
-  if (!fs.existsSync(PIPER_EXE)) {
-    cached = null;
-    return cached;
+
+  let resolved: TtsPaths | null = null;
+  const modelDir = modelDirFor(lang);
+  if (fs.existsSync(PIPER_EXE) && fs.existsSync(modelDir)) {
+    const onnx = fs.readdirSync(modelDir).find((f) => f.endsWith(".onnx"));
+    if (onnx) {
+      const model = path.join(modelDir, onnx);
+      const configCandidates = [
+        `${model}.json`,
+        path.join(modelDir, `${path.basename(model, ".onnx")}.json`),
+        path.join(modelDir, "config.json"),
+      ];
+      const config = configCandidates.find((f) => fs.existsSync(f));
+      resolved = { exe: PIPER_EXE, model, config };
+    }
   }
-  const onnx = fs.existsSync(MODEL_DIR)
-    ? fs.readdirSync(MODEL_DIR).find((f) => f.endsWith(".onnx"))
-    : undefined;
-  if (!onnx) {
-    cached = null;
-    return cached;
-  }
-  const model = path.join(MODEL_DIR, onnx);
-  const configCandidates = [
-    `${model}.json`,
-    path.join(MODEL_DIR, `${path.basename(model, ".onnx")}.json`),
-    path.join(MODEL_DIR, "config.json"),
-  ];
-  const config = configCandidates.find((f) => fs.existsSync(f));
-  cached = {
-    exe: PIPER_EXE,
-    model,
-    config,
-  };
-  return cached;
+  cache.set(lang, resolved);
+  return resolved;
 }
 
-export function ttsAvailable(): boolean {
-  return resolveTts() !== null;
+export function ttsAvailable(lang: Lang): boolean {
+  return resolveTts(lang) !== null;
 }
 
-/** WAV ヘッダから再生時間（ms）を求める */
+/** Compute playback duration (ms) from the WAV header. */
 export function wavDurationMs(file: string): number {
   const buf = fs.readFileSync(file);
   if (buf.length < 44 || buf.toString("ascii", 0, 4) !== "RIFF") return 0;
   const byteRate = buf.readUInt32LE(28);
-  // data チャンクを探す
+  // Find the data chunk.
   let offset = 12;
   while (offset + 8 <= buf.length) {
     const id = buf.toString("ascii", offset, offset + 4);
@@ -71,7 +79,7 @@ export function wavDurationMs(file: string): number {
   return 0;
 }
 
-/** 読み上げ用にテキストを整形（証拠 ID マーカーなどを除去） */
+/** Normalize text for reading aloud (strip evidence-ID markers and Markdown symbols). */
 export function speakableText(text: string): string {
   return text
     .replace(/\[[AN]-\d{2}\]/g, "")
@@ -82,9 +90,9 @@ export function speakableText(text: string): string {
 
 let queue: Promise<void> = Promise.resolve();
 
-/** 合成はキューで直列実行する（CPU スパイク防止） */
-export function enqueueSynthesis(text: string, wavPath: string): Promise<number | null> {
-  const job = queue.then(() => synthesize(text, wavPath));
+/** Synthesis runs serially through a queue (to avoid CPU spikes). */
+export function enqueueSynthesis(text: string, wavPath: string, lang: Lang): Promise<number | null> {
+  const job = queue.then(() => synthesize(text, wavPath, lang));
   queue = job.then(
     () => undefined,
     () => undefined,
@@ -92,8 +100,8 @@ export function enqueueSynthesis(text: string, wavPath: string): Promise<number 
   return job;
 }
 
-async function synthesize(text: string, wavPath: string): Promise<number | null> {
-  const tts = resolveTts();
+async function synthesize(text: string, wavPath: string, lang: Lang): Promise<number | null> {
+  const tts = resolveTts(lang);
   if (!tts) return null;
   fs.mkdirSync(path.dirname(wavPath), { recursive: true });
   const speakable = speakableText(text);
@@ -102,17 +110,17 @@ async function synthesize(text: string, wavPath: string): Promise<number | null>
   const args = ["--model", tts.model, "--text", speakable, "--output_file", wavPath];
   if (tts.config) args.push("--config", tts.config);
 
-  // --text は Windows で UTF-16 argv として渡るため、日本語のコードページ問題を避けられる。
+  // --text is passed as UTF-16 argv on Windows, avoiding Japanese code-page issues.
   const res = await execCommand(tts.exe, args, {
     cwd: path.dirname(tts.exe),
     env: {
-      PIPER_MODEL_DIR: MODEL_DIR,
+      PIPER_MODEL_DIR: path.dirname(tts.model),
       OPENJTALK_DICTIONARY_PATH: OPENJTALK_DIC,
     },
     timeoutMs: 120_000,
   });
   if (res.code !== 0 || !fs.existsSync(wavPath)) {
-    throw new Error(`piper 合成失敗 (exit ${res.code}): ${res.stderr.slice(0, 300)}`);
+    throw new Error(`piper synthesis failed (exit ${res.code}): ${res.stderr.slice(0, 300)}`);
   }
   return wavDurationMs(wavPath);
 }

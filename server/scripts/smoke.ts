@@ -1,7 +1,7 @@
 /**
- * 実 CLI アダプタのスモークテスト。
+ * Smoke test for the real CLI adapters.
  *   pnpm --filter @debate/server exec tsx scripts/smoke.ts claude codex opencode
- * 各プロバイダに簡単な指示を投げ、出力とツール使用履歴を表示する。
+ * Sends a simple instruction to each provider and prints the output and tool-usage history.
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -25,7 +25,7 @@ for (const provider of providers) {
       matchId: "smoke",
       label: `smoke-${provider}`,
       instructions:
-        "これは接続テストです。ツールは使わず、「接続OK」という4文字だけを出力してください。他の文字は一切出力しないでください。",
+        'This is a connectivity test. Do not use any tools; output only the two words "connection ok" and nothing else.',
       workspaceDir: workspace,
       allowWeb: false,
       needsFileTools: false,

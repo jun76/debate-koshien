@@ -12,10 +12,11 @@ import type {
   ThinkingInfo,
   VoteEvent,
 } from "@debate/shared";
-import { SIDE_LABEL, teamOfSide } from "@debate/shared";
+import { partLabel, partShortLabel, sideLabel, teamOfSide } from "@debate/shared";
 import { fetchFormats } from "../api";
 import { Art } from "../art/Art";
 import { FbGavel, FbMagnifier, FbPrepEnvelope, FbSealStamp } from "../art/fallbacks";
+import { useLang, useT } from "../i18n";
 import { EvidencePanel } from "./EvidencePanel";
 import { LogView } from "./LogView";
 import { Stage } from "./Stage";
@@ -26,13 +27,15 @@ function snippet(text: string, max = 44): string {
   return chars.length <= max ? plain : chars.slice(0, max).join("") + "…";
 }
 
-/** 準備フェーズのオーバーレイ（封筒 + 進行状況 + 封印スタンプ） */
+/** Preparation-phase overlay (envelope + progress + seal stamp). */
 function PrepPanel({ detail, events, replaying }: { detail: MatchDetail; events: MatchEvent[]; replaying: boolean }) {
+  const t = useT();
+  const { lang } = useLang();
   const teamCard = (team: TeamKey) => {
     const side = detail.config.affirmative === team ? "affirmative" : "negative";
     const tone = side === "affirmative" ? "aff" : "neg";
     const statuses = events.filter((e): e is PrepEvent => e.type === "prep" && e.team === team);
-    // 封印表示はペーシング済みイベントに従う（リプレイでスタンプが先に出ないように）
+    // The seal display follows the paced events (so the stamp does not appear early during replay).
     const seal = events.find((e): e is SealEvent => e.type === "seal" && e.team === team);
     const latest = statuses.at(-1);
     return (
@@ -51,11 +54,9 @@ function PrepPanel({ detail, events, replaying }: { detail: MatchDetail; events:
           )}
         </div>
         <div className="tent-info">
-          <div className="tent-team">
-            {SIDE_LABEL[side]}・{detail.config.teams[team].name}
-          </div>
+          <div className="tent-team">{t.arena.teamLine(sideLabel(side, lang), detail.config.teams[team].name)}</div>
           <div className="tent-status">
-            {seal ? "ハンドアウト封印済み" : (latest?.status ?? "待機中…")}
+            {seal ? t.arena.sealed : (latest?.status ?? t.arena.waiting)}
             {!seal && <span className="dots" />}
           </div>
           {seal && (
@@ -65,12 +66,12 @@ function PrepPanel({ detail, events, replaying }: { detail: MatchDetail; events:
             </div>
           )}
           <details className="tent-log">
-            <summary>作業記録</summary>
+            <summary>{t.arena.workLog}</summary>
             <ul>
               {statuses.map((s) => (
                 <li key={s.seq}>
                   {s.status}
-                  <span className="prep-time">{new Date(s.at).toLocaleTimeString("ja-JP")}</span>
+                  <span className="prep-time">{new Date(s.at).toLocaleTimeString(t.common.localeString)}</span>
                 </li>
               ))}
             </ul>
@@ -82,11 +83,7 @@ function PrepPanel({ detail, events, replaying }: { detail: MatchDetail; events:
 
   return (
     <div className="prep-panel">
-      <div className="prep-note paper">
-        {replaying
-          ? "🎬 リプレイ再生中 — 記録済みの準備工程をダイジェストで再生しています（推論は行っていません）"
-          : "📚 準備フェーズ — 両チームが独立に Web 調査を行い、封印用ハンドアウトを作成中。封印後は Web 利用が実行権限で禁止されます"}
-      </div>
+      <div className="prep-note paper">{replaying ? t.arena.prepNoteReplay : t.arena.prepNoteLive}</div>
       <div className="prep-tents">
         {teamCard(detail.config.affirmative)}
         {teamCard(detail.config.affirmative === "A" ? "B" : "A")}
@@ -95,7 +92,7 @@ function PrepPanel({ detail, events, replaying }: { detail: MatchDetail; events:
   );
 }
 
-/** 下部の進行バー（パートのドット + 現在の状況） */
+/** Bottom progress bar (part dots + current status). */
 function ProgressBar({
   format,
   events,
@@ -109,6 +106,8 @@ function ProgressBar({
   votes: VoteEvent[];
   judgeTotal: number;
 }) {
+  const t = useT();
+  const { lang } = useLang();
   const speeches = events.filter((e): e is SpeechEvent => e.type === "speech");
   const donePartIds = new Set(speeches.map((s) => s.partId));
   const currentPartId = speeches.at(-1)?.partId;
@@ -118,13 +117,13 @@ function ProgressBar({
   return (
     <div className="arena-bottombar">
       <div className="progress-parts">
-        <span className="bar-label">進行</span>
+        <span className="bar-label">{t.arena.progress}</span>
         {format?.parts.map((p) => {
           const status = p.id === currentPartId && phase === "debating" ? "current" : donePartIds.has(p.id) ? "done" : "todo";
           return (
-            <span key={p.id} className={`part-dot ${status} ${p.side === "affirmative" ? "aff" : "neg"}`} title={p.label}>
+            <span key={p.id} className={`part-dot ${status} ${p.side === "affirmative" ? "aff" : "neg"}`} title={partLabel(p.id, lang)}>
               <i />
-              <em>{p.label.replace(/側/, "")}</em>
+              <em>{partShortLabel(p.id, lang)}</em>
             </span>
           );
         })}
@@ -141,7 +140,7 @@ function ProgressBar({
             <span className="gavel-mini">
               <Art name="gavel" className="gavel-art" fallback={<FbGavel />} />
             </span>
-            審査中 {votes.length}/{judgeTotal}
+            {t.arena.judging(votes.length, judgeTotal)}
           </span>
         )}
       </div>
@@ -165,13 +164,13 @@ export function ArenaScreen({
   detail: MatchDetail;
   events: MatchEvent[];
   state: MatchState | null;
-  /** リアルタイムの思考中情報（演出でペーシングされる state とは別に、常に最新を渡す） */
+  /** Real-time thinking info (always the latest, separate from the presentation-paced state). */
   thinking?: Record<string, ThinkingInfo>;
   avatars: Map<string, AvatarInfo>;
   audioOn: boolean;
   finishedIds: Set<string>;
   onSpeechDone: (id: string) => void;
-  /** リプレイ（デモ再生）中かどうか。準備パネルの文言などに使う */
+  /** Whether replay (demo playback) is active. Used for the prep panel wording, etc. */
   replaying?: boolean;
 }) {
   const [selectedEvidence, setSelectedEvidence] = useState<{ team: TeamKey; id: string } | null>(null);

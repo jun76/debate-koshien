@@ -3,11 +3,23 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Seal, SealManifestFile, TeamKey } from "@debate/shared";
 
+/** A single difference detected against a seal manifest. The caller localizes it for display. */
+export interface SealDiff {
+  kind: "added" | "changed" | "removed";
+  path: string;
+}
+
+export interface VerifyResult {
+  ok: boolean;
+  /** Per-file differences (empty when ok, or when only the root hash differs). */
+  diffs: SealDiff[];
+}
+
 export function sha256Bytes(buf: Buffer | string): string {
   return createHash("sha256").update(buf).digest("hex");
 }
 
-/** ディレクトリ配下の全ファイルを列挙（相対パス、/ 区切り、ソート済み） */
+/** List every file under a directory (relative paths, "/"-separated, sorted). */
 export function listFiles(dir: string): string[] {
   const out: string[] = [];
   const walk = (rel: string) => {
@@ -22,7 +34,7 @@ export function listFiles(dir: string): string[] {
   return out.sort();
 }
 
-/** ファイル別ハッシュのマニフェストを作る */
+/** Build a manifest of per-file hashes. */
 export function buildManifest(dir: string): SealManifestFile[] {
   return listFiles(dir).map((rel) => {
     const buf = fs.readFileSync(path.join(dir, rel));
@@ -31,8 +43,9 @@ export function buildManifest(dir: string): SealManifestFile[] {
 }
 
 /**
- * マニフェストからルートハッシュを計算する。
- * 「path\nsha256\n」をパス順に連結した文字列の SHA-256（正規化済みなので環境非依存）。
+ * Compute the root hash from a manifest.
+ * SHA-256 of the "path\nsha256\n" lines concatenated in path order (normalized, so
+ * environment-independent).
  */
 export function rootHashOf(files: SealManifestFile[]): string {
   const canonical = [...files]
@@ -47,20 +60,20 @@ export function sealDirectory(dir: string, team: TeamKey): Seal {
   return { team, files, rootHash: rootHashOf(files), sealedAt: new Date().toISOString() };
 }
 
-/** 封印時のマニフェストと現在のディレクトリ内容を比較する */
-export function verifySeal(dir: string, seal: Seal): { ok: boolean; detail?: string } {
+/** Compare the manifest captured at seal time against the current directory contents. */
+export function verifySeal(dir: string, seal: Seal): VerifyResult {
   const current = buildManifest(dir);
   const currentRoot = rootHashOf(current);
-  if (currentRoot === seal.rootHash) return { ok: true };
+  if (currentRoot === seal.rootHash) return { ok: true, diffs: [] };
   const before = new Map(seal.files.map((f) => [f.path, f.sha256]));
   const after = new Map(current.map((f) => [f.path, f.sha256]));
-  const changed: string[] = [];
+  const diffs: SealDiff[] = [];
   for (const [p, h] of after) {
-    if (!before.has(p)) changed.push(`追加: ${p}`);
-    else if (before.get(p) !== h) changed.push(`変更: ${p}`);
+    if (!before.has(p)) diffs.push({ kind: "added", path: p });
+    else if (before.get(p) !== h) diffs.push({ kind: "changed", path: p });
   }
   for (const p of before.keys()) {
-    if (!after.has(p)) changed.push(`削除: ${p}`);
+    if (!after.has(p)) diffs.push({ kind: "removed", path: p });
   }
-  return { ok: false, detail: changed.join(", ") || "ルートハッシュ不一致" };
+  return { ok: false, diffs };
 }

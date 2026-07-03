@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { AudioEvent, DeliberationEvent, MatchEvent, SpeechEvent, TeamKey } from "@debate/shared";
-import { SIDE_LABEL } from "@debate/shared";
+import { sideLabel } from "@debate/shared";
+import { useLang, useT } from "../i18n";
 
-/** 証拠参照マーカーをクリック可能なチップに変換して本文を描画する */
+/** Render the speech, turning evidence-reference markers into clickable chips. */
 function SpeechText({
   text,
   team,
@@ -63,6 +64,8 @@ function TypewriterSpeech({
   resolveCitationTeam: (id: string, fallback: TeamKey) => TeamKey;
   onCite: (team: TeamKey, id: string) => void;
 }) {
+  const t = useT();
+  const { lang } = useLang();
   const chars = [...ev.text];
   const [revealed, setRevealed] = useState(finished || !isLatest ? chars.length : 0);
   const [audioFailed, setAudioFailed] = useState(false);
@@ -73,7 +76,7 @@ function TypewriterSpeech({
   const wantAudio = animate && audioOn && !audioFailed;
   const useAudio = wantAudio && Boolean(audio);
   const waitingAudio = wantAudio && !audio;
-  // 自動再生がブロックされている間は無音の文字送りで進め、音声が始まったら音声同期に切り替える
+  // While autoplay is blocked, advance the silent typewriter; switch to audio sync once it starts.
   const audioDriving = useAudio && !needsGesture;
 
   useEffect(() => {
@@ -91,7 +94,7 @@ function TypewriterSpeech({
     revealedRef.current = revealed;
   }, [revealed]);
 
-  // 音声なし（OFF / 失敗 / 自動再生ブロック中）のタイプライター
+  // Silent typewriter (audio OFF / failed / autoplay blocked).
   useEffect(() => {
     if (!animate || audioDriving || waitingAudio) return;
     const timer = setInterval(() => {
@@ -107,23 +110,24 @@ function TypewriterSpeech({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [animate, audioDriving, waitingAudio, ev.id]);
 
-  // 文字送り完了の通知。updater 内で親の setState を呼ぶと React が警告するため effect で行う。
-  // 音声再生中は onEnded が完了を通知する（文字が先に出揃っても音声を途中で切らない）。
+  // Notify that the typewriter finished. Done in an effect because calling the parent's setState
+  // inside an updater triggers a React warning. While audio plays, onEnded notifies completion
+  // (so the audio is not cut off even if all characters are already revealed).
   useEffect(() => {
     if (!animate || audioDriving) return;
     if (revealed >= chars.length) onDone(ev.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [animate, audioDriving, revealed, ev.id]);
 
-  // 音声待ちタイムアウト（合成が遅い・失敗した場合は文字送りに切り替える）
+  // Audio-wait timeout (fall back to the typewriter if synthesis is slow or fails).
   useEffect(() => {
     if (!waitingAudio) return;
     const t = setTimeout(() => setAudioFailed(true), 45_000);
     return () => clearTimeout(t);
   }, [waitingAudio]);
 
-  // 再生制御。autoplay 属性ではなく明示的に play() し、ブロックされたら
-  // 最初のユーザー操作（pointerdown）で文字送り位置にシークしてから再試行する。
+  // Playback control. Call play() explicitly rather than using the autoplay attribute; if blocked,
+  // seek to the typewriter position on the first user gesture (pointerdown) and retry.
   useEffect(() => {
     if (!useAudio) return;
     const el = audioRef.current;
@@ -155,12 +159,12 @@ function TypewriterSpeech({
   }, [useAudio, ev.id]);
 
   const visible = revealed >= chars.length ? ev.text : chars.slice(0, revealed).join("");
-  const speakerSide = SIDE_LABEL[ev.side];
+  const speakerSide = sideLabel(ev.side, lang);
   const head =
     ev.kind === "question"
-      ? `質問 ${(ev.exchangeIndex ?? 0) + 1}`
+      ? t.log.question((ev.exchangeIndex ?? 0) + 1)
       : ev.kind === "answer"
-        ? `応答 ${(ev.exchangeIndex ?? 0) + 1}`
+        ? t.log.answer((ev.exchangeIndex ?? 0) + 1)
         : ev.partLabel;
 
   return (
@@ -169,7 +173,7 @@ function TypewriterSpeech({
         <span className={`side-chip ${ev.side === "affirmative" ? "aff" : "neg"}`}>{speakerSide}</span>
         <span className="speech-part">{head}</span>
         <span className="speech-speaker">{ev.speakerName}</span>
-        <span className="speech-chars">{ev.chars}字</span>
+        <span className="speech-chars">{t.log.chars(ev.chars)}</span>
         {audio && !animate && (
           <audio className="speech-audio" src={`/api/matches/${matchId}/audio/${ev.id}`} controls preload="none" />
         )}
@@ -196,8 +200,8 @@ function TypewriterSpeech({
         <SpeechText text={visible} team={ev.team} resolveCitationTeam={resolveCitationTeam} onCite={onCite} />
         {animate && revealed < chars.length && <span className="caret">▌</span>}
       </div>
-      {waitingAudio && <div className="audio-wait">🔊 音声を合成中…</div>}
-      {needsGesture && <div className="audio-wait">🔇 ブラウザが自動再生をブロックしています — 画面をクリックすると音声が始まります</div>}
+      {waitingAudio && <div className="audio-wait">{t.log.synthesizing}</div>}
+      {needsGesture && <div className="audio-wait">{t.log.autoplayBlocked}</div>}
       {ev.warnings.length > 0 && (
         <div className="warnings">
           {ev.warnings.map((w, i) => (
@@ -228,6 +232,7 @@ export function LogView({
   resolveCitationTeam: (id: string, fallback: TeamKey) => TeamKey;
   onCite: (team: TeamKey, id: string) => void;
 }) {
+  const t = useT();
   const [showDeliberation, setShowDeliberation] = useState(true);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
@@ -242,7 +247,7 @@ export function LogView({
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [events.length]);
 
-  // パートごとの区切りを入れつつ発言と（オプションで）合議ログを時系列で並べる
+  // Lay out speeches and (optionally) deliberation logs chronologically, with per-part dividers.
   const rows: { key: string; node: React.ReactNode }[] = [];
   let lastPart = "";
   const timeline: (SpeechEvent | DeliberationEvent)[] = showDeliberation
@@ -279,11 +284,9 @@ export function LogView({
         key: `d-${ev.seq}`,
         node: (
           <div className="deliberation">
-            <span className="delib-head">
-              💭 チーム{ev.team} 内部合議 / {ev.memberName}（{ev.label}）
-            </span>
+            <span className="delib-head">{t.log.deliberationHead(ev.team, ev.memberName, ev.label)}</span>
             <details>
-              <summary>内容を見る</summary>
+              <summary>{t.log.viewContent}</summary>
               <div className="delib-text">{ev.text}</div>
             </details>
           </div>
@@ -295,13 +298,13 @@ export function LogView({
   return (
     <div className="log-view">
       <div className="log-head">
-        <h3>発言ログ</h3>
+        <h3>{t.log.speechLog}</h3>
         <label className="delib-toggle">
           <input type="checkbox" checked={showDeliberation} onChange={(e) => setShowDeliberation(e.target.checked)} />
-          チーム内合議も表示（観戦者限定・審査員には非公開）
+          {t.log.showDeliberation}
         </label>
       </div>
-      {rows.length === 0 && <div className="empty">まだ発言はありません</div>}
+      {rows.length === 0 && <div className="empty">{t.log.noSpeeches}</div>}
       {rows.map((r) => (
         <div key={r.key}>{r.node}</div>
       ))}

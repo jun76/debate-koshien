@@ -2,11 +2,13 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   countChars,
+  partLabel,
   truncateChars,
   type AgentConfig,
   type EvidenceEntry,
   type FormatDefinition,
   type FormatPart,
+  type Lang,
   type MatchConfig,
   type MemberRole,
   type Side,
@@ -15,6 +17,7 @@ import {
 } from "@debate/shared";
 import { invokeAgent, type InvocationKind, type MockHints, type ToolUsageRecord } from "./adapters/index.js";
 import { parseEvidence } from "./checks.js";
+import { serverStrings } from "./i18n.js";
 import { matchPaths } from "./paths.js";
 import {
   answerPrompt,
@@ -53,7 +56,7 @@ function memberByRole(config: MatchConfig, team: TeamKey, role: MemberRole): Age
   return t.members.find((m) => m.id === id);
 }
 
-/* ---------- 準備フェーズ ---------- */
+/* ---------- Preparation phase ---------- */
 
 export interface PrepResult {
   handoutMd: string;
@@ -70,118 +73,121 @@ export async function prepareTeamHandout(opts: {
   emitStatus: (status: string) => void;
 }): Promise<PrepResult> {
   const { config, team, side, format, ctl } = opts;
+  const lang = config.lang;
+  const t = serverStrings(lang);
   const teamCfg = config.teams[team];
   const workspace = matchPaths.prepWorkspace(config.id, team);
   ensureDir(workspace);
 
-  const mockHints: MockHints = { topic: config.topic, side, team };
+  const mockHints: MockHints = { topic: config.topic, side, team, lang };
   const thinkingKey = `team-${team}`;
   const think = (agents: AgentConfig[], label: string) =>
     updateThinking(config.id, thinkingKey, { scope: "team", team, agentIds: agents.map((a) => a.id), label });
 
   try {
-  // 調査担当を決める（役割分担制: researcher 指定者 / 合議制: 全メンバー）
-  let notes: string[] = [];
-  if (teamCfg.members.length > 1) {
-    const researchers =
-      teamCfg.mode === "roles"
-        ? teamCfg.members.filter((m) => teamCfg.roles?.[m.id] === "researcher")
-        : teamCfg.members;
-    const targets = researchers.length > 0 ? researchers : teamCfg.members;
-    opts.emitStatus(`調査中（${targets.map((m) => m.name).join("、")}）`);
-    think(targets, "調査中");
-    notes = await Promise.all(
-      targets.map(async (m) => {
-        ctl.checkAborted();
-        const res = await invokeAgent({
-          kind: "prep-research",
-          agent: m,
-          matchId: config.id,
-          label: `team${team}-${m.name}`,
-          instructions: prepResearchPrompt({ topic: config.topic, side, memberName: m.name, format }),
-          workspaceDir: workspace,
-          allowWeb: true,
-          needsFileTools: true,
-          timeoutMs: PREP_TIMEOUT_MS,
-          mockHints,
-        });
-        return res.output;
-      }),
-    );
-  }
-
-  // ハンドアウトの編纂担当（合議制: captain / 役割分担制: 調査担当 → いなければ captain）
-  const compiler =
-    teamCfg.mode === "roles"
-      ? (memberByRole(config, team, "researcher") ?? captainOf(config, team))
-      : captainOf(config, team);
-
-  ctl.checkAborted();
-  opts.emitStatus(`ハンドアウト作成中（${compiler.name}）`);
-  think([compiler], "ハンドアウト作成中");
-  await invokeAgent({
-    kind: "prep-compile",
-    agent: compiler,
-    matchId: config.id,
-    label: `team${team}-${compiler.name}`,
-    instructions: prepCompilePrompt({ topic: config.topic, side, format, researchNotes: notes }),
-    workspaceDir: workspace,
-    allowWeb: true,
-    needsFileTools: true,
-    timeoutMs: PREP_TIMEOUT_MS,
-    mockHints,
-  });
-
-  // 成果物の検証と修正ループ
-  for (let attempt = 0; ; attempt++) {
-    ctl.checkAborted();
-    const errors = validateWorkspace(workspace, side);
-    if (errors.length === 0) break;
-    if (attempt >= opts.fixRetries) {
-      throw new Error(`チーム${team} のハンドアウトが規定を満たさない: ${errors.join(" / ")}`);
+    // Decide who researches (role-division: the researcher / council: all members).
+    let notes: string[] = [];
+    if (teamCfg.members.length > 1) {
+      const researchers =
+        teamCfg.mode === "roles"
+          ? teamCfg.members.filter((m) => teamCfg.roles?.[m.id] === "researcher")
+          : teamCfg.members;
+      const targets = researchers.length > 0 ? researchers : teamCfg.members;
+      opts.emitStatus(t.researching(targets.map((m) => m.name).join("、")));
+      think(targets, t.thinkResearching);
+      notes = await Promise.all(
+        targets.map(async (m) => {
+          ctl.checkAborted();
+          const res = await invokeAgent({
+            kind: "prep-research",
+            agent: m,
+            matchId: config.id,
+            label: `team${team}-${m.name}`,
+            instructions: prepResearchPrompt({ topic: config.topic, side, memberName: m.name, format, lang }),
+            workspaceDir: workspace,
+            allowWeb: true,
+            needsFileTools: true,
+            timeoutMs: PREP_TIMEOUT_MS,
+            mockHints,
+          });
+          return res.output;
+        }),
+      );
     }
-    opts.emitStatus(`成果物の不備を修正中（${errors.length}件）`);
-    think([compiler], "成果物を修正中");
+
+    // Handout compiler (council: captain / role-division: researcher, else captain).
+    const compiler =
+      teamCfg.mode === "roles"
+        ? (memberByRole(config, team, "researcher") ?? captainOf(config, team))
+        : captainOf(config, team);
+
+    ctl.checkAborted();
+    opts.emitStatus(t.compiling(compiler.name));
+    think([compiler], t.thinkCompiling);
     await invokeAgent({
-      kind: "prep-fix",
+      kind: "prep-compile",
       agent: compiler,
       matchId: config.id,
       label: `team${team}-${compiler.name}`,
-      instructions: prepFixPrompt(errors),
+      instructions: prepCompilePrompt({ topic: config.topic, side, format, researchNotes: notes, lang }),
       workspaceDir: workspace,
       allowWeb: true,
       needsFileTools: true,
       timeoutMs: PREP_TIMEOUT_MS,
       mockHints,
     });
-  }
 
-  const handoutMd = fs.readFileSync(path.join(workspace, "handout.md"), "utf8");
-  const { evidence } = parseEvidence(fs.readFileSync(path.join(workspace, "evidence.json"), "utf8"), side);
-  return { handoutMd, evidence };
+    // Validate the artifacts and loop on fixes.
+    for (let attempt = 0; ; attempt++) {
+      ctl.checkAborted();
+      const errors = validateWorkspace(workspace, side, lang);
+      if (errors.length === 0) break;
+      if (attempt >= opts.fixRetries) {
+        throw new Error(t.handoutInvalid(team, errors.join(" / ")));
+      }
+      opts.emitStatus(t.fixingArtifacts(errors.length));
+      think([compiler], t.thinkFixing);
+      await invokeAgent({
+        kind: "prep-fix",
+        agent: compiler,
+        matchId: config.id,
+        label: `team${team}-${compiler.name}`,
+        instructions: prepFixPrompt(errors, lang),
+        workspaceDir: workspace,
+        allowWeb: true,
+        needsFileTools: true,
+        timeoutMs: PREP_TIMEOUT_MS,
+        mockHints,
+      });
+    }
+
+    const handoutMd = fs.readFileSync(path.join(workspace, "handout.md"), "utf8");
+    const { evidence } = parseEvidence(fs.readFileSync(path.join(workspace, "evidence.json"), "utf8"), side, lang);
+    return { handoutMd, evidence };
   } finally {
     updateThinking(config.id, thinkingKey, null);
   }
 }
 
-function validateWorkspace(workspace: string, side: Side): string[] {
+function validateWorkspace(workspace: string, side: Side, lang: Lang): string[] {
+  const t = serverStrings(lang);
   const errors: string[] = [];
   const evidenceFile = path.join(workspace, "evidence.json");
   const handoutFile = path.join(workspace, "handout.md");
   if (!fs.existsSync(evidenceFile)) {
-    errors.push("evidence.json が存在しない");
+    errors.push(t.handoutMissingEvidence);
   } else {
-    errors.push(...parseEvidence(fs.readFileSync(evidenceFile, "utf8"), side).errors);
+    errors.push(...parseEvidence(fs.readFileSync(evidenceFile, "utf8"), side, lang).errors);
   }
   if (!fs.existsSync(handoutFile)) {
-    errors.push("handout.md が存在しない");
+    errors.push(t.handoutMissingFile);
   } else if (fs.readFileSync(handoutFile, "utf8").trim().length < 50) {
-    errors.push("handout.md の内容が薄すぎる（論点構成と証拠の位置づけを記述すること）");
+    errors.push(t.handoutTooThin);
   }
   return errors;
 }
 
-/* ---------- ディベート本編の発言生成 ---------- */
+/* ---------- Speech generation for the debate proper ---------- */
 
 export interface UtteranceRequest {
   config: MatchConfig;
@@ -196,7 +202,7 @@ export interface UtteranceRequest {
   handoutMd: string;
   evidence: EvidenceEntry[];
   opponentEvidence: EvidenceEntry[];
-  /** 封印済みスナップショット（エージェントの cwd。原本には書き込ませない） */
+  /** Sealed snapshot (the agent's cwd; the original is never written to). */
   workspaceDir: string;
   ctl: RunControl;
   regenerateRetries: number;
@@ -206,12 +212,15 @@ export interface UtteranceResult {
   text: string;
   speaker: AgentConfig;
   toolUsage: ToolUsageRecord[];
-  /** 上限超過で切り詰めた場合の元の文字数 */
+  /** Original character count when truncated for exceeding the limit. */
   overLengthOriginal?: number;
 }
 
 export async function produceUtterance(req: UtteranceRequest): Promise<UtteranceResult> {
+  const lang = req.config.lang;
+  const t = serverStrings(lang);
   const teamCfg = req.config.teams[req.team];
+  const label = partLabel(req.part.id, lang);
   const ctx: SpeechContext = {
     topic: req.config.topic,
     side: req.side,
@@ -220,6 +229,7 @@ export async function produceUtterance(req: UtteranceRequest): Promise<Utterance
     handoutMd: req.handoutMd,
     evidence: req.evidence,
     publicLog: req.publicLog,
+    lang,
     exchangeIndex: req.exchangeIndex,
     lastQuestion: req.lastQuestion,
   };
@@ -231,6 +241,7 @@ export async function produceUtterance(req: UtteranceRequest): Promise<Utterance
     side: req.side,
     team: req.team,
     part: req.part,
+    lang,
     exchangeIndex: req.exchangeIndex,
     lastQuestion: req.lastQuestion,
     evidenceIds: req.evidence.map((e) => e.id),
@@ -258,23 +269,23 @@ export async function produceUtterance(req: UtteranceRequest): Promise<Utterance
   };
 
   const thinkingKey = `team-${req.team}`;
-  const think = (agents: AgentConfig[], label: string) =>
+  const think = (agents: AgentConfig[], thinkLabel: string) =>
     updateThinking(req.config.id, thinkingKey, {
       scope: "team",
       team: req.team,
       agentIds: agents.map((a) => a.id),
-      label,
+      label: thinkLabel,
     });
 
   const allUsage: ToolUsageRecord[] = [];
-  const emitDeliberation = (member: AgentConfig, label: string, text: string) => {
+  const emitDeliberation = (member: AgentConfig, deliberationLabel: string, text: string) => {
     appendEvent(req.config.id, {
       type: "deliberation",
       team: req.team,
       partId: req.part.id,
       memberId: member.id,
       memberName: member.name,
-      label,
+      label: deliberationLabel,
       text,
     });
   };
@@ -287,76 +298,76 @@ export async function produceUtterance(req: UtteranceRequest): Promise<Utterance
     req.kind === "question" ? "question" : req.kind === "answer" ? "answer" : "speech";
 
   try {
-  if (teamCfg.members.length === 1) {
-    speaker = teamCfg.members[0];
-    think([speaker], `${req.part.label}を思考中`);
-    const res = await invoke(invokeKind, speaker, basePrompt);
-    allUsage.push(...res.toolUsage);
-    text = res.output;
-  } else if (teamCfg.mode === "council") {
-    const captain = captainOf(req.config, req.team);
-    if (isQa) {
-      // 質疑はテンポ重視で captain が直接応答する
-      speaker = captain;
-      think([captain], req.kind === "question" ? "質問を思考中" : "応答を思考中");
-      const res = await invoke(invokeKind, captain, basePrompt);
+    if (teamCfg.members.length === 1) {
+      speaker = teamCfg.members[0];
+      think([speaker], t.thinkPart(label));
+      const res = await invoke(invokeKind, speaker, basePrompt);
       allUsage.push(...res.toolUsage);
       text = res.output;
+    } else if (teamCfg.mode === "council") {
+      const captain = captainOf(req.config, req.team);
+      if (isQa) {
+        // Cross-examination is answered directly by the captain for pace.
+        speaker = captain;
+        think([captain], req.kind === "question" ? t.thinkQuestion : t.thinkAnswer);
+        const res = await invoke(invokeKind, captain, basePrompt);
+        allUsage.push(...res.toolUsage);
+        text = res.output;
+      } else {
+        think(teamCfg.members, t.thinkDrafting);
+        const drafts = await Promise.all(
+          teamCfg.members.map(async (m) => {
+            const res = await invoke("draft", m, basePrompt + draftNote(m.name, lang));
+            allUsage.push(...res.toolUsage);
+            emitDeliberation(m, t.labelDraft, res.output);
+            return { memberName: m.name, text: res.output };
+          }),
+        );
+        speaker = captain;
+        think([captain], t.thinkMerging);
+        const res = await invoke("merge", captain, mergePrompt({ ctx, drafts, taskLabel: label, maxChars }));
+        allUsage.push(...res.toolUsage);
+        text = res.output;
+      }
     } else {
-      think(teamCfg.members, "草案を作成中");
-      const drafts = await Promise.all(
-        teamCfg.members.map(async (m) => {
-          const res = await invoke("draft", m, basePrompt + draftNote(m.name));
-          allUsage.push(...res.toolUsage);
-          emitDeliberation(m, "草案", res.output);
-          return { memberName: m.name, text: res.output };
-        }),
-      );
-      speaker = captain;
-      think([captain], "チーム発言を統合中");
-      const res = await invoke("merge", captain, mergePrompt({ ctx, drafts, taskLabel: req.part.label, maxChars }));
+      // Role-division mode.
+      const roleFor: MemberRole = req.kind === "constructive" ? "constructive" : req.kind === "rebuttal" ? "rebuttal" : req.kind === "question" ? "questioner" : "constructive";
+      const member = memberByRole(req.config, req.team, roleFor) ?? captainOf(req.config, req.team);
+      speaker = member;
+      think([member], t.thinkPart(label));
+      const res = await invoke(invokeKind, member, basePrompt);
       allUsage.push(...res.toolUsage);
       text = res.output;
+
+      const strategist = memberByRole(req.config, req.team, "strategist");
+      if (strategist && !isQa) {
+        emitDeliberation(member, t.labelAssigneeDraft, text);
+        think([strategist], t.thinkFinalCheck);
+        const reviewed = await invoke(
+          "merge",
+          strategist,
+          strategistReviewPrompt({ ctx, draft: text, taskLabel: label, maxChars }),
+        );
+        allUsage.push(...reviewed.toolUsage);
+        speaker = strategist;
+        text = reviewed.output;
+      }
     }
-  } else {
-    // 役割分担制
-    const roleFor: MemberRole = req.kind === "constructive" ? "constructive" : req.kind === "rebuttal" ? "rebuttal" : req.kind === "question" ? "questioner" : "constructive";
-    const member = memberByRole(req.config, req.team, roleFor) ?? captainOf(req.config, req.team);
-    speaker = member;
-    think([member], `${req.part.label}を思考中`);
-    const res = await invoke(invokeKind, member, basePrompt);
-    allUsage.push(...res.toolUsage);
-    text = res.output;
 
-    const strategist = memberByRole(req.config, req.team, "strategist");
-    if (strategist && !isQa) {
-      emitDeliberation(member, "担当者案", text);
-      think([strategist], "最終確認中");
-      const reviewed = await invoke(
-        "merge",
-        strategist,
-        strategistReviewPrompt({ ctx, draft: text, taskLabel: req.part.label, maxChars }),
-      );
-      allUsage.push(...reviewed.toolUsage);
-      speaker = strategist;
-      text = reviewed.output;
+    // Character limit: regenerate, then truncate if it still exceeds.
+    let overLengthOriginal: number | undefined;
+    for (let i = 0; i < req.regenerateRetries && countChars(text) > maxChars; i++) {
+      think([speaker], t.thinkRegenerate);
+      const res = await invoke("regenerate", speaker, regeneratePrompt(text, maxChars, lang));
+      allUsage.push(...res.toolUsage);
+      if (res.output.trim()) text = res.output;
     }
-  }
+    if (countChars(text) > maxChars) {
+      overLengthOriginal = countChars(text);
+      text = truncateChars(text, maxChars);
+    }
 
-  // 文字数上限: 再生成 → それでも超過なら切り詰め
-  let overLengthOriginal: number | undefined;
-  for (let i = 0; i < req.regenerateRetries && countChars(text) > maxChars; i++) {
-    think([speaker], "文字数上限内に再生成中");
-    const res = await invoke("regenerate", speaker, regeneratePrompt(text, maxChars));
-    allUsage.push(...res.toolUsage);
-    if (res.output.trim()) text = res.output;
-  }
-  if (countChars(text) > maxChars) {
-    overLengthOriginal = countChars(text);
-    text = truncateChars(text, maxChars);
-  }
-
-  return { text: text.trim(), speaker, toolUsage: allUsage, overLengthOriginal };
+    return { text: text.trim(), speaker, toolUsage: allUsage, overLengthOriginal };
   } finally {
     updateThinking(req.config.id, thinkingKey, null);
   }

@@ -5,9 +5,9 @@ import { MatchContainer } from "./components/MatchContainer";
 import { SetupScreen } from "./components/SetupScreen";
 
 /**
- * 3画面構成のルート。
- *   設定（ロビー） → アリーナ（試合観戦） → 結果と講評
- * アリーナと結果の切り替えは MatchContainer 内で行う。
+ * Root of the three-screen flow:
+ *   Setup (lobby) -> Arena (watch the match) -> Result & review.
+ * Switching between arena and result happens inside MatchContainer.
  */
 export function App() {
   const [matches, setMatches] = useState<MatchSummary[]>([]);

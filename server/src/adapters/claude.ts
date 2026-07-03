@@ -2,10 +2,10 @@ import { execCommand } from "../exec.js";
 import { addToolUsage, toolUsageFromMap, type AgentAdapter, type AgentInvocation, type AgentResult } from "./types.js";
 
 /**
- * Claude Code の非対話モード（claude -p）で実行する。
- * - 出力は stream-json で受けて、ツール使用履歴を監査ログとして回収する
- * - Web 禁止は --disallowedTools WebSearch,WebFetch で強制する
- * - テキストのみのタスクではツールを全て無効化して高速化する
+ * Run Claude Code in non-interactive mode (claude -p).
+ * - Read the output as stream-json and collect the tool-usage history as an audit log.
+ * - Web is forbidden via --disallowedTools WebSearch,WebFetch.
+ * - For text-only tasks, disable all tools to speed things up.
  */
 export class ClaudeAdapter implements AgentAdapter {
   readonly provider = "claude";
@@ -22,13 +22,13 @@ export class ClaudeAdapter implements AgentAdapter {
     if (inv.agent.reasoningEffort) args.push("--effort", inv.agent.reasoningEffort);
 
     if (!inv.needsFileTools) {
-      // 発言生成・審査はテキストのみ。ツールを無効化して逸脱と待ち時間を減らす
+      // Speech generation / judging are text-only. Disable tools to reduce drift and latency.
       args.push("--tools", "");
     } else if (!inv.allowWeb) {
       args.push("--disallowedTools", "WebSearch,WebFetch");
     }
     if (inv.needsFileTools && inv.allowWeb) {
-      // 準備フェーズ: Web 調査とファイル作成を許可（既定のツールセット）
+      // Preparation phase: allow web research and file creation (the default tool set).
     }
 
     const res = await execCommand("claude", args, {
@@ -48,7 +48,8 @@ export class ClaudeAdapter implements AgentAdapter {
       try {
         const ev = JSON.parse(trimmed) as Record<string, unknown>;
         if (ev.type === "rate_limit_event") {
-          // 通知イベントは成功時にも流れるため記録だけする。結果が得られなかった場合のみエラー扱い
+          // This notification also fires on success, so just record it; only treat it as an
+          // error if no result was produced.
           rateLimitSeen = true;
         }
         if (ev.type === "assistant") {
@@ -65,16 +66,16 @@ export class ClaudeAdapter implements AgentAdapter {
           }
         }
       } catch {
-        // JSON でない行は無視
+        // Ignore non-JSON lines.
       }
     }
 
     if (!resultText) resultText = assistantTexts.at(-1) ?? res.stdout.trim();
-    if (res.timedOut) throw new Error(`claude がタイムアウトした (${inv.timeoutMs}ms)`);
+    if (res.timedOut) throw new Error(`claude timed out (${inv.timeoutMs}ms)`);
     if (!resultText && rateLimitSeen) cliError = "rate limit";
     if (res.code !== 0 || cliError) {
       const detail = (cliError || resultText || res.stderr).slice(0, 500);
-      throw new Error(`claude が失敗した (exit ${res.code ?? "unknown"}): ${detail}`);
+      throw new Error(`claude failed (exit ${res.code ?? "unknown"}): ${detail}`);
     }
 
     return {

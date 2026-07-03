@@ -8,20 +8,21 @@ function opencodeExe(): string {
   const appdata = process.env.APPDATA ?? path.join(os.homedir(), "AppData", "Roaming");
   const exe = path.join(appdata, "npm", "node_modules", "opencode-ai", "bin", "opencode.exe");
   if (fs.existsSync(exe)) return exe;
-  throw new Error(`opencode CLI が見つからない: ${exe}`);
+  throw new Error(`opencode CLI not found: ${exe}`);
 }
 
 /**
- * OpenCode CLI（opencode run）で実行する。
- * - Web 禁止はワークスペースに書き込む opencode.json の permission 設定で強制する
- * - 長い指示は INSTRUCTIONS.md に書き、メッセージにはファイル添付で渡す
- *   （argv 上限と引用問題を避けるため）
+ * Run the OpenCode CLI (opencode run).
+ * - Web is forbidden via the permission config in the opencode.json written to the workspace.
+ * - Long instructions are written to INSTRUCTIONS.md and passed to the message as a file
+ *   attachment (to avoid argv length limits and quoting issues).
  */
 export class OpenCodeAdapter implements AgentAdapter {
   readonly provider = "opencode";
 
   async invoke(inv: AgentInvocation): Promise<AgentResult> {
-    // 権限設定をワークスペースに配置（プロンプトではなく実行権限としての Web 禁止）
+    // Place the permission config in the workspace (web forbidden as an execution permission,
+    // not via the prompt).
     const permissionConfig = {
       $schema: "https://opencode.ai/config.json",
       permission: {
@@ -37,7 +38,7 @@ export class OpenCodeAdapter implements AgentAdapter {
 
     const args = [
       "run",
-      "添付した INSTRUCTIONS.md の指示に従って、指定された最終出力だけを返してください。",
+      "Follow the instructions in the attached INSTRUCTIONS.md and return only the specified final output.",
       "--format",
       "json",
       `--file=${instructionsFile}`,
@@ -52,7 +53,7 @@ export class OpenCodeAdapter implements AgentAdapter {
       timeoutMs: inv.timeoutMs,
     });
 
-    if (res.timedOut) throw new Error(`opencode がタイムアウトした (${inv.timeoutMs}ms)`);
+    if (res.timedOut) throw new Error(`opencode timed out (${inv.timeoutMs}ms)`);
     const jsonTexts: string[] = [];
     for (const line of stripAnsi(res.stdout).split("\n")) {
       const trimmed = line.trim();
@@ -62,17 +63,18 @@ export class OpenCodeAdapter implements AgentAdapter {
         const text = typeof ev.part?.text === "string" ? ev.part.text : typeof ev.text === "string" ? ev.text : "";
         if (text) jsonTexts.push(text);
       } catch {
-        // JSON でない行は無視
+        // Ignore non-JSON lines.
       }
     }
     const output = jsonTexts.join("").trim() || stripAnsi(res.stdout).trim();
     if (res.code !== 0) {
-      throw new Error(`opencode が失敗した (exit ${res.code}): ${(stripAnsi(res.stderr) || output).slice(0, 500)}`);
+      throw new Error(`opencode failed (exit ${res.code}): ${(stripAnsi(res.stderr) || output).slice(0, 500)}`);
     }
 
     return {
       output,
-      // opencode はツール使用履歴を機械可読で返さないため、権限設定（webfetch deny）で担保する
+      // opencode does not return a machine-readable tool-usage history, so the permission config
+      // (webfetch deny) is what enforces the web ban.
       toolUsage: [],
       raw: { exitCode: res.code, stderr: stripAnsi(res.stderr).slice(0, 2000) },
       durationMs: res.durationMs,

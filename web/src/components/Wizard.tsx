@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import type { AvatarInfo, FormatDefinition, MemberRole, Provider, TeamKey } from "@debate/shared";
-import { ROLE_LABEL } from "@debate/shared";
+import type { AvatarInfo, FormatDefinition, Lang, MemberRole, Provider, TeamKey } from "@debate/shared";
+import { formatDescription, formatName, roleLabel, sideLabel } from "@debate/shared";
 import { api, fetchAvatars, fetchFormats, fetchMatch, fetchProviders, startMatch } from "../api";
+import { useLang, useT } from "../i18n";
 import { AvatarRenderer } from "./AvatarRenderer";
 
 interface MemberForm {
@@ -28,11 +29,13 @@ function newMember(avatarId = ""): MemberForm {
   return { name: "", provider: "mock", model: "", reasoningEffort: "", avatarId, role: "constructive" };
 }
 
-function newTeam(key: TeamKey): TeamForm {
-  return { name: `チーム${key}`, mode: "council", captainIndex: 0, members: [newMember()] };
+function newTeam(): TeamForm {
+  // Leave the name empty; the server fills the localized default when it is blank. This keeps the
+  // default correct regardless of the language selected at match-creation time.
+  return { name: "", mode: "council", captainIndex: 0, members: [newMember()] };
 }
 
-/* ---------- 設定の JSON インポート / エクスポート ---------- */
+/* ---------- Settings JSON import / export ---------- */
 
 interface WizardConfigFile {
   version: number;
@@ -58,7 +61,7 @@ function sanitizeMember(raw: unknown): MemberForm {
   };
 }
 
-function sanitizeTeam(raw: unknown, key: TeamKey): TeamForm {
+function sanitizeTeam(raw: unknown): TeamForm {
   const r = (raw ?? {}) as Record<string, unknown>;
   const members =
     Array.isArray(r.members) && r.members.length > 0
@@ -66,7 +69,7 @@ function sanitizeTeam(raw: unknown, key: TeamKey): TeamForm {
       : [newMember()];
   const captainIndex = Number.isInteger(r.captainIndex) ? (r.captainIndex as number) : 0;
   return {
-    name: typeof r.name === "string" && r.name ? r.name : `チーム${key}`,
+    name: typeof r.name === "string" ? r.name : "",
     mode: r.mode === "roles" ? "roles" : "council",
     captainIndex: Math.min(Math.max(captainIndex, 0), members.length - 1),
     members,
@@ -74,15 +77,18 @@ function sanitizeTeam(raw: unknown, key: TeamKey): TeamForm {
 }
 
 export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?: boolean }) => void }) {
+  const t = useT();
+  const { lang } = useLang();
   const [formats, setFormats] = useState<FormatDefinition[]>([]);
   const [avatars, setAvatars] = useState<AvatarInfo[]>([]);
-  const [providers, setProviders] = useState<{ id: string; label: string }[]>([]);
-  const [ttsAvailable, setTtsAvailable] = useState(false);
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [ttsMap, setTtsMap] = useState<Record<Lang, boolean>>({ ja: false, en: false });
+  const ttsAvailable = ttsMap[lang];
 
   const [topic, setTopic] = useState("");
   const [formatId, setFormatId] = useState("quick");
   const [affirmative, setAffirmative] = useState<"A" | "B" | "random">("A");
-  const [teams, setTeams] = useState<Record<TeamKey, TeamForm>>({ A: newTeam("A"), B: newTeam("B") });
+  const [teams, setTeams] = useState<Record<TeamKey, TeamForm>>(() => ({ A: newTeam(), B: newTeam() }));
   const [judgeCount, setJudgeCount] = useState(3);
   const [judges, setJudges] = useState<MemberForm[]>([newMember(), newMember(), newMember()]);
   const [reviewer, setReviewer] = useState<MemberForm>(newMember());
@@ -90,7 +96,7 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
   const [demo, setDemo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  /** デモモードの先行生成中に表示する進行テキスト（null なら生成中ではない） */
+  /** Progress text shown while a demo match is being pre-generated (null when not generating). */
   const [demoProgress, setDemoProgress] = useState<string | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -99,9 +105,8 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
     fetchAvatars().then(setAvatars).catch(() => undefined);
     fetchProviders()
       .then((p) => {
-        setProviders(p.providers);
-        setTtsAvailable(p.ttsAvailable);
-        setTts(p.ttsAvailable);
+        setProviders(p.providers.map((x) => x.id));
+        setTtsMap(p.tts);
       })
       .catch(() => undefined);
   }, []);
@@ -119,7 +124,7 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
     });
   };
 
-  /** 現在の入力値一式を JSON ファイルとしてダウンロードする */
+  /** Download the whole current input set as a JSON file. */
   const exportConfig = () => {
     const data: WizardConfigFile = {
       version: 1,
@@ -140,12 +145,12 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
     URL.revokeObjectURL(a.href);
   };
 
-  /** JSON ファイルから入力値一式を復元する（欠けたフィールドは既定値で補う） */
+  /** Restore the whole input set from a JSON file (missing fields fall back to defaults). */
   const importConfig = async (file: File) => {
     setError(null);
     try {
       const raw = JSON.parse(await file.text()) as Record<string, unknown>;
-      if (typeof raw !== "object" || raw === null) throw new Error("JSON オブジェクトではありません");
+      if (typeof raw !== "object" || raw === null) throw new Error(t.wizard.notJsonObject);
 
       if (typeof raw.topic === "string") setTopic(raw.topic);
       if (typeof raw.formatId === "string" && (formats.length === 0 || formats.some((f) => f.id === raw.formatId))) {
@@ -155,7 +160,7 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
         setAffirmative(raw.affirmative);
       }
       const teamsRaw = (raw.teams ?? {}) as Record<string, unknown>;
-      setTeams({ A: sanitizeTeam(teamsRaw.A, "A"), B: sanitizeTeam(teamsRaw.B, "B") });
+      setTeams({ A: sanitizeTeam(teamsRaw.A), B: sanitizeTeam(teamsRaw.B) });
 
       let importedJudges = Array.isArray(raw.judges) && raw.judges.length > 0 ? raw.judges.slice(0, 5).map(sanitizeMember) : [newMember()];
       if (importedJudges.length % 2 === 0) importedJudges = importedJudges.slice(0, -1);
@@ -166,11 +171,11 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
       if (typeof raw.tts === "boolean") setTts(raw.tts && ttsAvailable);
       if (typeof raw.demo === "boolean") setDemo(raw.demo);
     } catch (e) {
-      setError(`設定ファイルを読み込めません: ${e instanceof Error ? e.message : String(e)}`);
+      setError(t.wizard.configFileError(e instanceof Error ? e.message : String(e)));
     }
   };
 
-  /** デモモード: サーバ側で全推論 + 全音声が終わる（= finished になる）まで待つ */
+  /** Demo mode: wait until the server finishes all inference + audio (i.e. reaches "finished"). */
   const waitForDemoReady = async (id: string) => {
     for (;;) {
       await new Promise((r) => setTimeout(r, 2000));
@@ -178,9 +183,9 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
       const phase = d.state.phase;
       if (phase === "finished") return;
       if (phase === "aborted" || phase === "error") {
-        throw new Error(d.state.error ?? "デモの生成が中断されました");
+        throw new Error(d.state.error ?? t.wizard.demoInterrupted);
       }
-      setDemoProgress(d.state.progress?.trim() || "試合を生成中…");
+      setDemoProgress(d.state.progress?.trim() || t.wizard.generatingMatch);
     }
   };
 
@@ -192,6 +197,7 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
         topic,
         affirmative,
         formatId,
+        lang,
         tts,
         autoAdvance: true,
         demo,
@@ -232,7 +238,7 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
       const res = await api<{ id: string }>("/api/matches", { method: "POST", body: JSON.stringify(payload) });
       await startMatch(res.id);
       if (demo) {
-        setDemoProgress("試合を生成中…");
+        setDemoProgress(t.wizard.generatingMatch);
         await waitForDemoReady(res.id);
         onCreated(res.id, { replay: true });
       } else {
@@ -249,31 +255,31 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
     <div className={`member-row ${opts.role ? "with-role" : ""}`}>
       <input
         className="member-name"
-        placeholder="名前（省略可）"
+        placeholder={t.wizard.namePlaceholder}
         value={m.name}
         onChange={(e) => update({ ...m, name: e.target.value })}
       />
       <select value={m.provider} onChange={(e) => update({ ...m, provider: e.target.value as Provider })}>
         {providers.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.label}
+          <option key={p} value={p}>
+            {t.common.providerLabels[p]}
           </option>
         ))}
       </select>
       <input
         className="member-model"
-        placeholder="モデル（省略可）"
+        placeholder={t.wizard.modelPlaceholder}
         value={m.model}
         onChange={(e) => update({ ...m, model: e.target.value })}
       />
       <select
         value={m.reasoningEffort}
         onChange={(e) => update({ ...m, reasoningEffort: e.target.value })}
-        title="推論モード"
+        title={t.wizard.reasoningTitle}
       >
         {EFFORTS.map((v) => (
           <option key={v} value={v}>
-            {v || "推論: 既定"}
+            {v || t.wizard.reasoningDefault}
           </option>
         ))}
       </select>
@@ -281,7 +287,7 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
         <select value={m.role} onChange={(e) => update({ ...m, role: e.target.value as MemberRole })}>
           {ROLES.map((r) => (
             <option key={r} value={r}>
-              {ROLE_LABEL[r]}
+              {roleLabel(r, lang)}
             </option>
           ))}
         </select>
@@ -303,42 +309,51 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
   );
 
   const teamEditor = (key: TeamKey) => {
-    const t = teams[key];
+    const team = teams[key];
     return (
       <section className="card" key={key}>
         <h3 className="team-heading">
-          <span>チーム {key}</span>
-          {affirmative === key && <span className="side-chip aff">肯定側</span>}
-          {affirmative !== key && affirmative !== "random" && <span className="side-chip neg">否定側</span>}
+          <span>
+            {t.wizard.teamName} {key}
+          </span>
+          {affirmative === key && <span className="side-chip aff">{sideLabel("affirmative", lang)}</span>}
+          {affirmative !== key && affirmative !== "random" && (
+            <span className="side-chip neg">{sideLabel("negative", lang)}</span>
+          )}
         </h3>
         <div className="form-line">
-          <label>チーム名</label>
-          <input value={t.name} onChange={(e) => updateTeam(key, (x) => ({ ...x, name: e.target.value }))} />
-          <label>運用方式</label>
+          <label>{t.wizard.teamName}</label>
+          <input
+            placeholder={key === "A" ? t.wizard.teamAOption : t.wizard.teamBOption}
+            value={team.name}
+            onChange={(e) => updateTeam(key, (x) => ({ ...x, name: e.target.value }))}
+          />
+
+          <label>{t.wizard.teamMode}</label>
           <select
-            value={t.mode}
+            value={team.mode}
             onChange={(e) => updateTeam(key, (x) => ({ ...x, mode: e.target.value as "council" | "roles" }))}
           >
-            <option value="council">合議制 + captain</option>
-            <option value="roles">役割分担制</option>
+            <option value="council">{t.wizard.councilOption}</option>
+            <option value="roles">{t.wizard.rolesOption}</option>
           </select>
         </div>
-        {t.members.map((m, i) => (
+        {team.members.map((m, i) => (
           <div key={i} className="member-block">
             <div className="member-head">
-              <span>メンバー {i + 1}</span>
-              {t.mode === "council" && (
+              <span>{t.wizard.member(i + 1)}</span>
+              {team.mode === "council" && (
                 <label className="captain-label">
                   <input
                     type="radio"
                     name={`captain-${key}`}
-                    checked={t.captainIndex === i}
+                    checked={team.captainIndex === i}
                     onChange={() => updateTeam(key, (x) => ({ ...x, captainIndex: i }))}
                   />
                   captain
                 </label>
               )}
-              {t.members.length > 1 && (
+              {team.members.length > 1 && (
                 <button
                   type="button"
                   className="mini"
@@ -350,20 +365,20 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
                     }))
                   }
                 >
-                  削除
+                  {t.wizard.removeMember}
                 </button>
               )}
             </div>
-            {memberEditor(m, (nm) => updateTeam(key, (x) => ({ ...x, members: x.members.map((om, j) => (j === i ? nm : om)) })), { role: t.mode === "roles" })}
+            {memberEditor(m, (nm) => updateTeam(key, (x) => ({ ...x, members: x.members.map((om, j) => (j === i ? nm : om)) })), { role: team.mode === "roles" })}
           </div>
         ))}
-        {t.members.length < 5 && (
+        {team.members.length < 5 && (
           <button
             type="button"
             className="mini"
             onClick={() => updateTeam(key, (x) => ({ ...x, members: [...x.members, newMember()] }))}
           >
-            + メンバー追加
+            {t.wizard.addMember}
           </button>
         )}
       </section>
@@ -373,13 +388,13 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
   return (
     <div className="wizard">
       <div className="wizard-head">
-        <h2>新しい試合</h2>
+        <h2>{t.wizard.newMatch}</h2>
         <div className="wizard-io">
           <button type="button" className="mini" onClick={exportConfig}>
-            ⬇ 設定をエクスポート
+            {t.wizard.exportConfig}
           </button>
           <button type="button" className="mini" onClick={() => importInputRef.current?.click()}>
-            ⬆ インポート
+            {t.wizard.importConfig}
           </button>
           <input
             ref={importInputRef}
@@ -396,27 +411,27 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
       </div>
 
       <section className="card">
-        <h3>論題</h3>
+        <h3>{t.wizard.resolutionHeading}</h3>
         <textarea
           rows={2}
-          placeholder="例: 日本は中学校・高等学校の部活動を地域クラブに移行すべきである。是か非か"
+          placeholder={t.wizard.resolutionPlaceholder}
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
         />
         <div className="form-line">
-          <label>フォーマット</label>
+          <label>{t.wizard.format}</label>
           <select value={formatId} onChange={(e) => setFormatId(e.target.value)}>
             {formats.map((f) => (
               <option key={f.id} value={f.id}>
-                {f.name}（{f.description}）
+                {formatName(f.id, lang)}（{formatDescription(f.id, lang)}）
               </option>
             ))}
           </select>
-          <label>肯定側</label>
+          <label>{t.wizard.affirmativeSelect}</label>
           <select value={affirmative} onChange={(e) => setAffirmative(e.target.value as "A" | "B" | "random")}>
-            <option value="A">チームA</option>
-            <option value="B">チームB</option>
-            <option value="random">コイントス</option>
+            <option value="A">{t.wizard.teamAOption}</option>
+            <option value="B">{t.wizard.teamBOption}</option>
+            <option value="random">{t.wizard.coinToss}</option>
           </select>
         </div>
       </section>
@@ -427,13 +442,13 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
       </div>
 
       <section className="card">
-        <h3>審査員</h3>
+        <h3>{t.wizard.judgesHeading}</h3>
         <div className="form-line">
-          <label>人数</label>
+          <label>{t.wizard.count}</label>
           <select value={judgeCount} onChange={(e) => setJudgeCountAndResize(Number(e.target.value))}>
             {[1, 3, 5].map((n) => (
               <option key={n} value={n}>
-                {n}人
+                {t.wizard.people(n)}
               </option>
             ))}
           </select>
@@ -441,7 +456,7 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
         {judges.map((j, i) => (
           <div key={i} className="member-block">
             <div className="member-head">
-              <span>審査員 {i + 1}</span>
+              <span>{t.wizard.judge(i + 1)}</span>
             </div>
             {memberEditor(j, (nj) => setJudges((prev) => prev.map((oj, k) => (k === i ? nj : oj))), {})}
           </div>
@@ -449,22 +464,23 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
       </section>
 
       <section className="card">
-        <h3>感想戦の解説担当</h3>
+        <h3>{t.wizard.reviewerHeading}</h3>
         {memberEditor(reviewer, setReviewer, {})}
       </section>
 
       <section className="card">
-        <h3>観戦オプション</h3>
+        <h3>{t.wizard.spectatorOptions}</h3>
         <div className="form-line">
-          <label title="準備〜感想戦まで、全ての発言に音声を合成して読み上げます">
-            <input type="checkbox" checked={tts} disabled={!ttsAvailable} onChange={(e) => setTts(e.target.checked)} />
-            音声読み上げを生成する（試合全体）{!ttsAvailable && "（piper-plus 未セットアップのため無効）"}
+          <label title={t.wizard.ttsTitle}>
+            <input type="checkbox" checked={tts && ttsAvailable} disabled={!ttsAvailable} onChange={(e) => setTts(e.target.checked)} />
+            {t.wizard.ttsLabel}
+            {!ttsAvailable && t.wizard.ttsDisabled}
           </label>
         </div>
         <div className="form-line">
-          <label title="全ての推論と音声生成を先に済ませてから、待ち時間なしで1試合を通しで観戦するモード">
+          <label title={t.wizard.demoTitle}>
             <input type="checkbox" checked={demo} disabled={busy} onChange={(e) => setDemo(e.target.checked)} />
-            デモモード（試合を丸ごと先に生成してから、待ち時間なしで再生）
+            {t.wizard.demoLabel}
           </label>
         </div>
       </section>
@@ -473,16 +489,14 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
       <button className="primary big" disabled={busy || !topic.trim()} onClick={submit}>
         {busy && <span className="btn-spinner" aria-hidden="true" />}
         {demoProgress !== null
-          ? `デモ生成中: ${demoProgress}`
+          ? t.wizard.demoGenerating(demoProgress)
           : busy
-            ? "作成中…"
+            ? t.wizard.creating
             : demo
-              ? "デモ試合を生成して開始"
-              : "試合を作成して開始"}
+              ? t.wizard.demoCreateStart
+              : t.wizard.createStart}
       </button>
-      {demoProgress !== null && (
-        <div className="demo-note">開戦から決着までの推論と音声を先に生成しています。完了すると自動で観戦が始まります。</div>
-      )}
+      {demoProgress !== null && <div className="demo-note">{t.wizard.demoNote}</div>}
     </div>
   );
 }

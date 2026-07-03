@@ -13,7 +13,7 @@ interface CutInQueueItem {
   resolve: () => void;
 }
 
-/** カットイン演出のキュー管理。push した順に1枚ずつ表示し、表示完了を Promise で返す。 */
+/** Cut-in queue management. Shows one at a time in push order and resolves a Promise when done. */
 export function useCutIns() {
   const [current, setCurrent] = useState<CutInMsg | null>(null);
   const queue = useRef<CutInQueueItem[]>([]);
