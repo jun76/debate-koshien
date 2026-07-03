@@ -8,6 +8,8 @@ export const en: Dict = {
     loadingMatch: "Loading the match…",
     localeString: "en-US",
     none: "(none)",
+    delete: "Delete",
+    cancel: "Cancel",
     providerLabels: {
       mock: "Mock (smoke test, instant reply)",
       claude: "Claude Code",

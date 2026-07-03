@@ -4,6 +4,7 @@ import { phaseLabel } from "@debate/shared";
 import { Art } from "../art/Art";
 import { FbGavel, FbTrophy } from "../art/fallbacks";
 import { LanguageToggle, useLang, useT } from "../i18n";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { Wizard } from "./Wizard";
 
 export function phaseTone(phase: Phase): string {
@@ -71,14 +72,16 @@ export function SetupScreen({
   const t = useT();
   const { lang } = useLang();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  /** 削除確認モーダルの対象。null なら非表示 */
+  const [pendingDelete, setPendingDelete] = useState<MatchSummary | null>(null);
 
   const doDelete = async (match: MatchSummary) => {
-    if (!confirm(t.lobby.deleteConfirm(match.topic))) return;
     setDeletingId(match.id);
     try {
       await onDeleted(match.id);
     } finally {
       setDeletingId(null);
+      setPendingDelete(null);
     }
   };
 
@@ -128,13 +131,13 @@ export function SetupScreen({
                 title={t.lobby.deleteMatch}
                 onClick={(e) => {
                   e.stopPropagation();
-                  void doDelete(m);
+                  setPendingDelete(m);
                 }}
                 onKeyDown={(e) => {
                   if (e.key !== "Enter" && e.key !== " ") return;
                   e.preventDefault();
                   e.stopPropagation();
-                  void doDelete(m);
+                  setPendingDelete(m);
                 }}
               >
                 {deletingId === m.id ? "…" : <TrashIcon />}
@@ -170,6 +173,20 @@ export function SetupScreen({
           <Wizard onCreated={onCreated} />
         </div>
       </div>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title={t.lobby.deleteMatch}
+        message={pendingDelete ? t.lobby.deleteConfirm(pendingDelete.topic) : ""}
+        confirmLabel={t.common.delete}
+        cancelLabel={t.common.cancel}
+        danger
+        busy={pendingDelete !== null && deletingId === pendingDelete.id}
+        onConfirm={() => {
+          if (pendingDelete) void doDelete(pendingDelete);
+        }}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

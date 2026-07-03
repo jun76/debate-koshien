@@ -10,6 +10,8 @@ export const ja = {
     loadingMatch: "試合を読み込んでいます…",
     localeString: "ja-JP",
     none: "（なし）",
+    delete: "削除",
+    cancel: "キャンセル",
     providerLabels: {
       mock: "Mock（動作確認用・即応答）",
       claude: "Claude Code",
