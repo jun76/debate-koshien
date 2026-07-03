@@ -14,6 +14,10 @@ import { TTS_DIR } from "./paths.js";
 const PIPER_EXE = path.join(TTS_DIR, "piper", "piper.exe");
 const MODELS_ROOT = path.join(TTS_DIR, "models");
 const OPENJTALK_DIC = path.join(TTS_DIR, "piper", "share", "open_jtalk", "dic");
+// piper-plus の言語別 G2P 辞書（英語の CMU 辞書など）。この配置（piper/ 直下に exe と share/ が
+// 並ぶ）では exe 相対の探索（<exe>/../share/piper/dicts）が外れるため、環境変数で明示する。
+// 未設定だと英語が音素化されず、ごく短いノイズ状の音声になる。
+const PIPER_DICTS = path.join(TTS_DIR, "piper", "share", "piper", "dicts");
 
 interface TtsPaths {
   exe: string;
@@ -116,6 +120,7 @@ async function synthesize(text: string, wavPath: string, lang: Lang): Promise<nu
     env: {
       PIPER_MODEL_DIR: path.dirname(tts.model),
       OPENJTALK_DICTIONARY_PATH: OPENJTALK_DIC,
+      PIPER_DICTIONARIES_PATH: PIPER_DICTS,
     },
     timeoutMs: 120_000,
   });

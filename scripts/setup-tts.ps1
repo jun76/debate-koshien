@@ -78,6 +78,9 @@ if (-not (Test-Path -LiteralPath $enConfig)) {
 }
 
 $env:OPENJTALK_DICTIONARY_PATH = Join-Path $piperDir "share\open_jtalk\dic"
+# English G2P needs the CMU dictionary; with piper.exe and share\ side by side the exe-relative
+# lookup misses it, so point piper-plus at the dicts folder explicitly (the server does the same).
+$env:PIPER_DICTIONARIES_PATH = Join-Path $piperDir "share\piper\dicts"
 
 function Test-Synthesis($label, $model, $config, $text, $out) {
   Write-Host "Testing $label synthesis..." -ForegroundColor Cyan
