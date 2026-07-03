@@ -36,10 +36,24 @@ evidence handling, rebuttal, comparative weighing, and judging.
 ## Requirements
 
 - Node.js 22+ and pnpm
-- For real agents: the `claude`, `codex`, and/or `opencode` CLIs installed and authenticated
+- For real agents: the `claude` (Claude Code), `codex` (Codex CLI), and/or `opencode`
+  (OpenCode) CLIs installed and authenticated
 - Optional avatars: assets placed under `assets/avatars/` (PuruPuru PNGTuber folder format);
   without them, built-in SVG fallback characters are shown
 - Optional TTS: PowerShell (Windows) to run the setup script; works without it (silent mode)
+
+### How the agent CLIs are used
+
+Clone this repository onto the machine where you normally run `claude` / `codex` /
+`opencode` from a terminal. The server does not call any LLM API directly — for every
+speech, prep step, and verdict it spawns the selected CLI as a local subprocess (headless,
+one shot per invocation) inside a per-match workspace. That means:
+
+- Each CLI you select in the match settings must be launchable from your shell (on `PATH`)
+  and already logged in / authenticated on this machine.
+- Usage is billed to whatever plan or API key each CLI is configured with, per member,
+  judge, and reviewer invocation.
+- The `Mock` provider needs no CLI at all and is the best way to try the app first.
 
 ## Setup
 
