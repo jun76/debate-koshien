@@ -44,6 +44,26 @@ function TrashIcon() {
   );
 }
 
+function ReplayIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 12a9 9 0 1 0 3-6.7" />
+      <path d="M3 4v5h5" />
+      <path d="M10 9.5v5l4.5-2.5z" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 /** 設定画面（ロビー）。チーム編成ウィザードと過去試合のチケット一覧。 */
 export function SetupScreen({
   matches,
@@ -53,9 +73,9 @@ export function SetupScreen({
   loadError,
 }: {
   matches: MatchSummary[];
-  onOpen: (id: string) => void;
+  onOpen: (id: string, opts?: { replay?: boolean }) => void;
   onDeleted: (id: string) => Promise<void>;
-  onCreated: (id: string) => void;
+  onCreated: (id: string, opts?: { replay?: boolean }) => void;
   loadError: string | null;
 }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -124,6 +144,26 @@ export function SetupScreen({
               >
                 {deletingId === m.id ? "…" : <TrashIcon />}
               </button>
+              {m.phase === "finished" && (
+                <button
+                  type="button"
+                  className="ticket-replay"
+                  aria-label="デモ再生（最初から観戦）"
+                  title="デモ再生（最初から観戦）"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpen(m.id, { replay: true });
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter" && e.key !== " ") return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onOpen(m.id, { replay: true });
+                  }}
+                >
+                  <ReplayIcon />
+                </button>
+              )}
               <span className={`phase-pill ${phaseTone(m.phase)}`}>{PHASE_LABEL[m.phase]}</span>
               <span className="ticket-topic">{m.topic}</span>
               <span className="ticket-date">{new Date(m.createdAt).toLocaleString("ja-JP")}</span>

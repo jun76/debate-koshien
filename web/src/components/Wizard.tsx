@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { AvatarInfo, FormatDefinition, MemberRole, Provider, TeamKey } from "@debate/shared";
 import { ROLE_LABEL } from "@debate/shared";
-import { api, fetchAvatars, fetchFormats, fetchProviders, startMatch } from "../api";
+import { api, fetchAvatars, fetchFormats, fetchMatch, fetchProviders, startMatch } from "../api";
 import { AvatarRenderer } from "./AvatarRenderer";
 
 interface MemberForm {
@@ -43,6 +43,7 @@ interface WizardConfigFile {
   judges: MemberForm[];
   reviewer: MemberForm;
   tts: boolean;
+  demo: boolean;
 }
 
 function sanitizeMember(raw: unknown): MemberForm {
@@ -72,7 +73,7 @@ function sanitizeTeam(raw: unknown, key: TeamKey): TeamForm {
   };
 }
 
-export function Wizard({ onCreated }: { onCreated: (id: string) => void }) {
+export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?: boolean }) => void }) {
   const [formats, setFormats] = useState<FormatDefinition[]>([]);
   const [avatars, setAvatars] = useState<AvatarInfo[]>([]);
   const [providers, setProviders] = useState<{ id: string; label: string }[]>([]);
@@ -86,8 +87,11 @@ export function Wizard({ onCreated }: { onCreated: (id: string) => void }) {
   const [judges, setJudges] = useState<MemberForm[]>([newMember(), newMember(), newMember()]);
   const [reviewer, setReviewer] = useState<MemberForm>(newMember());
   const [tts, setTts] = useState(true);
+  const [demo, setDemo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** デモモードの先行生成中に表示する進行テキスト（null なら生成中ではない） */
+  const [demoProgress, setDemoProgress] = useState<string | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -126,6 +130,7 @@ export function Wizard({ onCreated }: { onCreated: (id: string) => void }) {
       judges,
       reviewer,
       tts,
+      demo,
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
@@ -159,8 +164,23 @@ export function Wizard({ onCreated }: { onCreated: (id: string) => void }) {
 
       setReviewer(sanitizeMember(raw.reviewer));
       if (typeof raw.tts === "boolean") setTts(raw.tts && ttsAvailable);
+      if (typeof raw.demo === "boolean") setDemo(raw.demo);
     } catch (e) {
       setError(`設定ファイルを読み込めません: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
+  /** デモモード: サーバ側で全推論 + 全音声が終わる（= finished になる）まで待つ */
+  const waitForDemoReady = async (id: string) => {
+    for (;;) {
+      await new Promise((r) => setTimeout(r, 2000));
+      const d = await fetchMatch(id);
+      const phase = d.state.phase;
+      if (phase === "finished") return;
+      if (phase === "aborted" || phase === "error") {
+        throw new Error(d.state.error ?? "デモの生成が中断されました");
+      }
+      setDemoProgress(d.state.progress?.trim() || "試合を生成中…");
     }
   };
 
@@ -174,6 +194,7 @@ export function Wizard({ onCreated }: { onCreated: (id: string) => void }) {
         formatId,
         tts,
         autoAdvance: true,
+        demo,
         teams: Object.fromEntries(
           (Object.entries(teams) as [TeamKey, TeamForm][]).map(([key, t]) => [
             key,
@@ -210,10 +231,17 @@ export function Wizard({ onCreated }: { onCreated: (id: string) => void }) {
       };
       const res = await api<{ id: string }>("/api/matches", { method: "POST", body: JSON.stringify(payload) });
       await startMatch(res.id);
-      onCreated(res.id);
+      if (demo) {
+        setDemoProgress("試合を生成中…");
+        await waitForDemoReady(res.id);
+        onCreated(res.id, { replay: true });
+      } else {
+        onCreated(res.id);
+      }
     } catch (e) {
       setError(String(e instanceof Error ? e.message : e));
       setBusy(false);
+      setDemoProgress(null);
     }
   };
 
@@ -423,18 +451,38 @@ export function Wizard({ onCreated }: { onCreated: (id: string) => void }) {
       <section className="card">
         <h3>感想戦の解説担当</h3>
         {memberEditor(reviewer, setReviewer, {})}
+      </section>
+
+      <section className="card">
+        <h3>観戦オプション</h3>
         <div className="form-line">
-          <label>
+          <label title="準備〜感想戦まで、全ての発言に音声を合成して読み上げます">
             <input type="checkbox" checked={tts} disabled={!ttsAvailable} onChange={(e) => setTts(e.target.checked)} />
-            音声読み上げを生成する{!ttsAvailable && "（piper-plus 未セットアップのため無効）"}
+            音声読み上げを生成する（試合全体）{!ttsAvailable && "（piper-plus 未セットアップのため無効）"}
+          </label>
+        </div>
+        <div className="form-line">
+          <label title="全ての推論と音声生成を先に済ませてから、待ち時間なしで1試合を通しで観戦するモード">
+            <input type="checkbox" checked={demo} disabled={busy} onChange={(e) => setDemo(e.target.checked)} />
+            デモモード（試合を丸ごと先に生成してから、待ち時間なしで再生）
           </label>
         </div>
       </section>
 
       {error && <div className="error-box">{error}</div>}
       <button className="primary big" disabled={busy || !topic.trim()} onClick={submit}>
-        {busy ? "作成中…" : "試合を作成して開始"}
+        {busy && <span className="btn-spinner" aria-hidden="true" />}
+        {demoProgress !== null
+          ? `デモ生成中: ${demoProgress}`
+          : busy
+            ? "作成中…"
+            : demo
+              ? "デモ試合を生成して開始"
+              : "試合を作成して開始"}
       </button>
+      {demoProgress !== null && (
+        <div className="demo-note">開戦から決着までの推論と音声を先に生成しています。完了すると自動で観戦が始まります。</div>
+      )}
     </div>
   );
 }

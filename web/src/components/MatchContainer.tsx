@@ -9,8 +9,48 @@ import { PHASE_LABEL, phaseTone } from "./SetupScreen";
 
 type View = "arena" | "result";
 
+/** リプレイ時の準備シーン全体（prep イベント合計）に割く時間の目安（ms） */
+const REPLAY_PREP_BUDGET_MS = 6000;
+
+/**
+ * リプレイ（デモモード）時にイベント種別ごとへ挟む演出ディレイ（ms）。
+ * 全イベントが最初から揃っているため、素通しにすると高速紙芝居になってしまう。
+ * 発言はタイプライター/音声が、phase・vote・result はカットイン（約1.9秒）がペースを作るので、
+ * ここでは「間」が無いと不自然になるイベントだけに入れる。
+ * prep はイベント数で割った予算制にし、準備シーンが長々と続かないようにする。
+ */
+function replayPaceOf(ev: MatchEvent, prepPace: number): number {
+  switch (ev.type) {
+    case "prep":
+      return prepPace;
+    case "seal":
+      return 1000;
+    case "hash-check":
+      return 500;
+    case "deliberation":
+      return 900;
+    case "speech":
+      return 600;
+    case "review-ready":
+      return 800;
+    default:
+      return 0;
+  }
+}
+
 /** 試合画面の司令塔。ライブ購読・カットイン・アリーナ/結果の切り替えを担う。 */
-export function MatchContainer({ id, onExit }: { id: string; onExit: () => void }) {
+export function MatchContainer({
+  id,
+  replay = false,
+  onExit,
+  onReplay,
+}: {
+  id: string;
+  replay?: boolean;
+  onExit: () => void;
+  /** 終了済み試合をリプレイ再生に切り替える（ヘッダーのリプレイボタン） */
+  onReplay?: () => void;
+}) {
   const live = useLiveMatch(id);
   const [avatars, setAvatars] = useState<AvatarInfo[]>([]);
   const [audioOn, setAudioOn] = useState(true);
@@ -53,17 +93,30 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
     speechWaiters.current.clear();
     finishedIdsRef.current = new Set();
     pendingSpeechId.current = null;
-  }, [id]);
+    // replay も依存に含める: ヘッダーのリプレイボタンで同じ試合のまま再生モードへ切り替えるため
+  }, [id, replay]);
 
   const avatarMap = useMemo(() => new Map(avatars.map((a) => [a.id, a])), [avatars]);
   const detail = live.detail;
   const rawEvents = live.events;
   const events = displayEvents;
+  // リプレイ（デモモード）は生成済みの試合を最初から演出付きで流す。未完了の試合なら通常観戦にフォールバック
+  const replaying = replay && detail?.state.phase === "finished";
 
   // 途中から開いたときは既存イベントにカットインを出さない（ベースラインを取る）
   useEffect(() => {
     if (!detail) return;
     if (baseline.current === null) {
+      if (replaying) {
+        // リプレイ: 何もスキップせず、確定済みイベントを最初から drain で演出付きに流す
+        baseline.current = 0;
+        processed.current = 0;
+        rawEventsRef.current = rawEvents;
+        detailRef.current = detail;
+        setDisplayEvents([]);
+        setDisplayState({ phase: "setup", updatedAt: detail.state.updatedAt });
+        return;
+      }
       baseline.current = rawEvents.length;
       processed.current = rawEvents.length;
       rawEventsRef.current = rawEvents;
@@ -105,6 +158,9 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
   useEffect(() => {
     if (!detail || baseline.current === null) return;
     const token = runToken.current;
+    // 準備シーンは合計 REPLAY_PREP_BUDGET_MS 程度に収まるよう、prep 1件あたりの間を予算から割り出す
+    const prepCount = rawEvents.filter((e) => e.type === "prep").length;
+    const prepPace = Math.min(1200, Math.max(400, Math.round(REPLAY_PREP_BUDGET_MS / Math.max(prepCount, 1))));
 
     // audio イベントはペーシングの対象外。発言本体より数イベント後に記録されるため、
     // キューで堰き止めると読み上げ中の発言が自分の音声を待ってタイムアウトしてしまう。
@@ -139,6 +195,14 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
             await waitForSpeechDone(pendingSpeechId.current);
             pendingSpeechId.current = null;
             if (token !== runToken.current) break;
+          }
+
+          if (replaying) {
+            const pace = replayPaceOf(ev, prepPace);
+            if (pace > 0) {
+              await new Promise((r) => setTimeout(r, pace));
+              if (token !== runToken.current) break;
+            }
           }
 
           if (ev.type === "speech" && ev.partId !== lastPartId.current) {
@@ -183,7 +247,7 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
     };
 
     void drain();
-  }, [detail, push, rawEvents]);
+  }, [detail, push, rawEvents, replaying]);
 
   if (!detail) {
     return (
@@ -196,9 +260,11 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
   }
 
   const phase = displayState?.phase ?? live.state?.phase ?? detail.state.phase;
-  const canAct = !["finished", "aborted"].includes(phase);
-  const resultAvailable =
-    detail.verdicts.length > 0 || ["judging", "reviewing", "finished"].includes(phase);
+  const canAct = !replaying && !["finished", "aborted"].includes(phase);
+  // リプレイ中は「判定発表」まで結果タブを開けないようにしてネタバレを防ぐ
+  const resultAvailable = replaying
+    ? events.some((e) => e.type === "result")
+    : detail.verdicts.length > 0 || ["judging", "reviewing", "finished"].includes(phase);
 
   const doStart = async () => {
     setActionError(null);
@@ -245,13 +311,14 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
             ← 設定
           </button>
           {canAct && (
-            <>
-              <button className="paper-btn danger" type="button" onClick={doAbort}>
-                中断
-              </button>
-              <span className={`phase-pill ${phaseTone(phase)}`}>{PHASE_LABEL[phase]}</span>
-            </>
+            <button className="paper-btn danger" type="button" onClick={doAbort}>
+              中断
+            </button>
           )}
+          {(canAct || replaying) && (
+            <span className={`phase-pill ${phaseTone(phase)}`}>{PHASE_LABEL[phase]}</span>
+          )}
+          {replaying && <span className="phase-pill idle">デモ再生</span>}
           {phase === "error" && (
             <button className="paper-btn" type="button" onClick={doStart}>
               再試行
@@ -262,14 +329,21 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
           <span className="header-logo">AIディベート甲子園</span>
         </div>
         <div className="header-right">
-          <button
-            className={`paper-btn toggle-btn ${audioOn ? "on" : ""}`}
-            type="button"
-            onClick={() => setAudioOn((v) => !v)}
-            title={detail.ttsAvailable ? "音声読み上げ" : "piper-plus 未セットアップ（表示のみ）"}
-          >
-            🔊 音声 {audioOn ? "ON" : "OFF"}
-          </button>
+          {detail.state.phase === "finished" && !replay ? (
+            // 終了済み試合の閲覧中は音声トグルの出番がないので、代わりにリプレイ再生を出す
+            <button className="paper-btn" type="button" onClick={onReplay} disabled={!onReplay} title="この試合を最初から演出付きで再生">
+              ⟲ リプレイ再生
+            </button>
+          ) : (
+            <button
+              className={`paper-btn toggle-btn ${audioOn ? "on" : ""}`}
+              type="button"
+              onClick={() => setAudioOn((v) => !v)}
+              title={detail.ttsAvailable ? "音声読み上げ" : "piper-plus 未セットアップ（表示のみ）"}
+            >
+              🔊 音声 {audioOn ? "ON" : "OFF"}
+            </button>
+          )}
           <div className="view-tabs">
             <button
               className={`paper-btn tab-btn ${view === "arena" ? "active" : ""}`}
@@ -304,6 +378,7 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
           audioOn={audioOn && detail.ttsAvailable}
           finishedIds={finishedIds}
           onSpeechDone={markSpeechDone}
+          replaying={replaying}
         />
       ) : (
         <ResultScreen detail={detail} events={events} avatars={avatarMap} />

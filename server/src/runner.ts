@@ -46,6 +46,9 @@ interface Running {
 
 const running = new Map<string, Running>();
 
+/** 試合ごとの未完了 TTS ジョブ。デモモードで「全音声出揃い」を待つために持つ */
+const ttsJobs = new Map<string, Promise<void>[]>();
+
 export function isRunning(matchId: string): boolean {
   return running.has(matchId);
 }
@@ -88,7 +91,10 @@ export function startMatch(matchId: string): { ok: boolean; message?: string } {
         setPhase(matchId, "error", String(err instanceof Error ? err.message : err));
       }
     })
-    .finally(() => running.delete(matchId));
+    .finally(() => {
+      running.delete(matchId);
+      ttsJobs.delete(matchId);
+    });
 
   return { ok: true };
 }
@@ -337,7 +343,7 @@ function scheduleTts(config: MatchConfig, ev: SpeechEvent): void {
   if (!config.tts || !ttsAvailable()) return;
   const audioDir = matchPaths.audioDir(config.id);
   const wavPath = path.join(audioDir, `${ev.id}.wav`);
-  void enqueueSynthesis(speakableText(ev.text), wavPath)
+  const job = enqueueSynthesis(speakableText(ev.text), wavPath)
     .then((durationMs) => {
       if (durationMs === null) return;
       appendEvent(config.id, { type: "audio", refId: ev.id, file: `${ev.id}.wav`, durationMs });
@@ -345,6 +351,9 @@ function scheduleTts(config: MatchConfig, ev: SpeechEvent): void {
     .catch((err) => {
       console.error(`[tts ${config.id}]`, err);
     });
+  const list = ttsJobs.get(config.id) ?? [];
+  list.push(job);
+  ttsJobs.set(config.id, list);
 }
 
 /* ---------- 審査 ---------- */
@@ -596,6 +605,11 @@ async function runReview(config: MatchConfig, ctl: RunControl): Promise<void> {
 
   saveReview(config.id, review);
   appendEvent(config.id, { type: "review-ready" });
+  if (config.demo) {
+    // デモモードでは finished = 「再生に必要な素材が全部揃った」の合図。全音声を待つ
+    setProgress(config.id, "音声合成の完了を待機中");
+    await Promise.allSettled(ttsJobs.get(config.id) ?? []);
+  }
   setPhase(config.id, "finished");
 }
 

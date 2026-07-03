@@ -12,6 +12,7 @@ import { SetupScreen } from "./components/SetupScreen";
 export function App() {
   const [matches, setMatches] = useState<MatchSummary[]>([]);
   const [matchId, setMatchId] = useState<string | null>(() => new URLSearchParams(location.search).get("match"));
+  const [replay, setReplay] = useState<boolean>(() => new URLSearchParams(location.search).get("replay") === "1");
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const refreshMatches = useCallback(() => {
@@ -27,13 +28,16 @@ export function App() {
     refreshMatches();
   }, [refreshMatches]);
 
-  const openMatch = (id: string) => {
+  const openMatch = (id: string, opts?: { replay?: boolean }) => {
+    const asReplay = opts?.replay ?? false;
     setMatchId(id);
-    history.replaceState(null, "", `?match=${encodeURIComponent(id)}`);
+    setReplay(asReplay);
+    history.replaceState(null, "", `?match=${encodeURIComponent(id)}${asReplay ? "&replay=1" : ""}`);
   };
 
   const exitToSetup = () => {
     setMatchId(null);
+    setReplay(false);
     history.replaceState(null, "", location.pathname);
     refreshMatches();
   };
@@ -42,6 +46,7 @@ export function App() {
     await deleteMatch(id);
     if (matchId === id) {
       setMatchId(null);
+      setReplay(false);
       history.replaceState(null, "", location.pathname);
     }
     refreshMatches();
@@ -50,7 +55,12 @@ export function App() {
   return (
     <div className="app-root">
       {matchId ? (
-        <MatchContainer id={matchId} onExit={exitToSetup} />
+        <MatchContainer
+          id={matchId}
+          replay={replay}
+          onExit={exitToSetup}
+          onReplay={() => openMatch(matchId, { replay: true })}
+        />
       ) : (
         <SetupScreen matches={matches} onOpen={openMatch} onDeleted={removeMatch} onCreated={openMatch} loadError={loadError} />
       )}

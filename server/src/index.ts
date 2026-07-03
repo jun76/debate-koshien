@@ -82,6 +82,7 @@ interface CreateMatchPayload {
   formatId: string;
   tts?: boolean;
   autoAdvance?: boolean;
+  demo?: boolean;
 }
 
 const PROVIDERS: Provider[] = ["mock", "claude", "codex", "opencode"];
@@ -170,7 +171,9 @@ app.post("/api/matches", async (c) => {
     },
     formatId: payload.formatId,
     tts: (payload.tts ?? true) && ttsAvailable(),
-    autoAdvance: payload.autoAdvance ?? true,
+    // デモモードは「全生成 → 一気に再生」なので必ず自動進行にする
+    autoAdvance: payload.demo ? true : (payload.autoAdvance ?? true),
+    demo: payload.demo ?? false,
     limits: { prepMaxCalls: 12, fixRetries: 2, regenerateRetries: 1 },
   };
 
@@ -201,9 +204,13 @@ app.get("/api/matches/:id", (c) => {
 app.delete("/api/matches/:id", (c) => {
   const id = c.req.param("id");
   if (isRunning(id)) abortMatch(id);
-  const deleted = deleteMatch(id);
-  if (!deleted) return c.json({ error: "試合が見つかりません" }, 404);
-  return c.json({ ok: true });
+  try {
+    const deleted = deleteMatch(id);
+    if (!deleted) return c.json({ error: "試合が見つかりません" }, 404);
+    return c.json({ ok: true });
+  } catch (e) {
+    return c.json({ error: `削除に失敗しました: ${e instanceof Error ? e.message : String(e)}` }, 500);
+  }
 });
 
 app.post("/api/matches/:id/phase", async (c) => {

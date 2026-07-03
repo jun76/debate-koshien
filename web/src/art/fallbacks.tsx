@@ -270,3 +270,61 @@ export function FbMagnifier() {
     </svg>
   );
 }
+
+/**
+ * アバター素材（assets/avatars/）が無いときのフォールバックキャラクター。
+ * 名前から決まる配色のペーパークラフト調キャラで、CSS によるまばたきと
+ * speaking 中の口パクだけを持つ簡易版（styles.css の .fb-avatar 参照）。
+ */
+const FB_AVATAR_PALETTES = [
+  { hair: "#5b4a3f", cloth: "#2e8073" },
+  { hair: "#8a5a33", cloth: "#bf4050" },
+  { hair: "#3f4a5b", cloth: "#5b8fb9" },
+  { hair: "#6b4a6e", cloth: "#e9a93d" },
+  { hair: "#2f4f4a", cloth: "#8f6bb0" },
+  { hair: "#704438", cloth: "#c47a3d" },
+];
+
+export function FbAvatar({ name, speaking = false }: { name: string; speaking?: boolean }) {
+  let h = 0;
+  for (const ch of name) h = (h * 31 + (ch.codePointAt(0) ?? 0)) >>> 0;
+  const p = FB_AVATAR_PALETTES[h % FB_AVATAR_PALETTES.length];
+  const initials = [...name].slice(0, 2).join("");
+  return (
+    <svg viewBox="0 0 120 150" className={`fb-avatar ${speaking ? "speaking" : ""}`} style={{ width: "100%", height: "100%" }}>
+      {/* 後ろ髪 */}
+      <ellipse cx="60" cy="70" rx="40" ry="38" fill={p.hair} />
+      {/* 体（肩口を上げ、あごと重ねて首が浮かないようにする） */}
+      <path d="M22 150 Q24 104 60 100 Q96 104 98 150 Z" fill={p.cloth} stroke="#00000018" strokeWidth="2" />
+      {/* 襟 */}
+      <path d="M48 104 L60 118 L72 104" fill="none" stroke="#fffaf0" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+      {/* 顔（体の上に重ねて描く） */}
+      <circle cx="60" cy="74" r="30" fill="#f7e3cf" stroke="#00000010" strokeWidth="2" />
+      {/* 前髪 */}
+      <path d="M29 70 Q32 40 60 38 Q88 40 91 70 Q76 54 60 57 Q44 54 29 70 Z" fill={p.hair} />
+      {/* 目（まばたきは CSS の scaleY） */}
+      <g className="fb-eyes">
+        <circle cx="48" cy="77" r="3.6" fill="#4a3826" />
+        <circle cx="72" cy="77" r="3.6" fill="#4a3826" />
+      </g>
+      {/* 頬 */}
+      <circle cx="41" cy="86" r="4.4" fill="#f0b2a0" opacity="0.7" />
+      <circle cx="79" cy="86" r="4.4" fill="#f0b2a0" opacity="0.7" />
+      {/* 口（speaking 中は CSS でぱくぱく） */}
+      <ellipse className="fb-mouth" cx="60" cy="93" rx="6" ry="3" fill="#a05046" />
+      {/* 胸元の名札 */}
+      <rect x="38" y="124" width="44" height="18" rx="6" fill="#f3e3c2" stroke="#8a6a44" strokeWidth="2" />
+      <text
+        x="60"
+        y="137.5"
+        textAnchor="middle"
+        fontSize="11"
+        fontWeight="900"
+        fill="#4a3826"
+        fontFamily="'M PLUS Rounded 1c', sans-serif"
+      >
+        {initials}
+      </text>
+    </svg>
+  );
+}

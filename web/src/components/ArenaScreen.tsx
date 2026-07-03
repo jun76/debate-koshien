@@ -6,6 +6,7 @@ import type {
   MatchEvent,
   MatchState,
   PrepEvent,
+  SealEvent,
   SpeechEvent,
   TeamKey,
   ThinkingInfo,
@@ -26,12 +27,13 @@ function snippet(text: string, max = 44): string {
 }
 
 /** 準備フェーズのオーバーレイ（封筒 + 進行状況 + 封印スタンプ） */
-function PrepPanel({ detail, events }: { detail: MatchDetail; events: MatchEvent[] }) {
+function PrepPanel({ detail, events, replaying }: { detail: MatchDetail; events: MatchEvent[]; replaying: boolean }) {
   const teamCard = (team: TeamKey) => {
     const side = detail.config.affirmative === team ? "affirmative" : "negative";
     const tone = side === "affirmative" ? "aff" : "neg";
     const statuses = events.filter((e): e is PrepEvent => e.type === "prep" && e.team === team);
-    const seal = detail.seals[team];
+    // 封印表示はペーシング済みイベントに従う（リプレイでスタンプが先に出ないように）
+    const seal = events.find((e): e is SealEvent => e.type === "seal" && e.team === team);
     const latest = statuses.at(-1);
     return (
       <div className={`prep-tent-card tone-${tone} pop-in`} key={team}>
@@ -81,7 +83,9 @@ function PrepPanel({ detail, events }: { detail: MatchDetail; events: MatchEvent
   return (
     <div className="prep-panel">
       <div className="prep-note paper">
-        📚 準備フェーズ — 両チームが独立に Web 調査を行い、封印用ハンドアウトを作成中。封印後は Web 利用が実行権限で禁止されます
+        {replaying
+          ? "🎬 リプレイ再生中 — 記録済みの準備工程をダイジェストで再生しています（推論は行っていません）"
+          : "📚 準備フェーズ — 両チームが独立に Web 調査を行い、封印用ハンドアウトを作成中。封印後は Web 利用が実行権限で禁止されます"}
       </div>
       <div className="prep-tents">
         {teamCard(detail.config.affirmative)}
@@ -155,6 +159,7 @@ export function ArenaScreen({
   audioOn,
   finishedIds,
   onSpeechDone,
+  replaying = false,
 }: {
   matchId: string;
   detail: MatchDetail;
@@ -166,6 +171,8 @@ export function ArenaScreen({
   audioOn: boolean;
   finishedIds: Set<string>;
   onSpeechDone: (id: string) => void;
+  /** リプレイ（デモ再生）中かどうか。準備パネルの文言などに使う */
+  replaying?: boolean;
 }) {
   const [selectedEvidence, setSelectedEvidence] = useState<{ team: TeamKey; id: string } | null>(null);
   const [formats, setFormats] = useState<FormatDefinition[]>([]);
@@ -209,7 +216,7 @@ export function ArenaScreen({
       <ProgressBar format={format} events={events} state={state} votes={votes} judgeTotal={detail.config.judges.length} />
 
       {inPrep ? (
-        <PrepPanel detail={detail} events={events} />
+        <PrepPanel detail={detail} events={events} replaying={replaying} />
       ) : (
         <div className="watch-grid">
           <LogView

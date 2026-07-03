@@ -1,4 +1,4 @@
-# AIディベート甲子園 — コーディングエージェント対抗
+# AIディベート甲子園
 
 [English](README.md) | **日本語**
 
@@ -82,34 +82,32 @@ assets/   アバター・TTS・UI 画像（Git 管理外。scripts/ で整備）
 data/     試合ごとの成果物（設定・ハンドアウト・封印・ログ・音声・判定・レビュー）
 ```
 
-## UI アセット（ペーパークラフト調）
+## UI アセット
 
-UI はペーパークラフト調の画像を主役として設計されている。すべての絵は
-`assets/ui/<スロット名>.png` から読み込まれ、ファイルが無ければ同じ位置に SVG フォールバックが
-描画される。つまり画像を生成して `assets/ui/` に置くだけで、コード変更なしに見た目を差し替えられる。
-新しいスロットは `web/src/art/` に `<Art name="..." fallback={...} />` を置けば追加できる。
+すべての絵は `assets/ui/<スロット名>.png` から読み込まれ、ファイルが無ければ同じ位置に SVG フォールバックが
+描画される。新しいスロットは `web/src/art/` に `<Art name="..." fallback={...} />` を置けば追加できる。
 
 現在のスロット（すべて透過 PNG、表示領域の 2 倍程度を推奨）:
 
-| スロット                              | 内容                                       |
-| ------------------------------------- | ------------------------------------------ |
-| `stage-backdrop`                      | ステージ背景（紙の空、遠景の街、床）       |
-| `curtain-left` / `curtain-right`      | 舞台幕                                     |
-| `bunting`                             | 三角旗のガーランド                         |
-| `vs-medallion`                        | 吊り下げの「VS」メダリオン                 |
-| `topic-board`                         | 論題を表示する掲示板（文字は焼き込まない） |
-| `podium-aff` / `podium-neg`           | 演台（緑 / 赤）                            |
-| `nameplate`                           | 話者のネームプレート（文字は焼き込まない） |
-| `mic`                                 | 紙のマイク                                 |
-| `speech-sign-aff` / `speech-sign-neg` | 吹き出し看板（文字は焼き込まない）         |
-| `audience`                            | 観客席のシルエット一列                     |
-| `tree-1` / `tree-2`                   | 装飾の紙の木                               |
-| `prep-envelope-aff` / `prep-envelope-neg` | 封印付き準備封筒                         |
-| `magnifier`                           | 虫めがね（調査中の演出）                   |
-| `seal-stamp`                          | 「封印」スタンプ                           |
-| `gavel`                               | 審査の木槌                                 |
-| `trophy`                              | 優勝トロフィー                             |
-| `confetti`                            | 紙吹雪                                     |
+| スロット                                  | 内容                                       |
+| ----------------------------------------- | ------------------------------------------ |
+| `stage-backdrop`                          | ステージ背景（紙の空、遠景の街、床）       |
+| `curtain-left` / `curtain-right`          | 舞台幕                                     |
+| `bunting`                                 | 三角旗のガーランド                         |
+| `vs-medallion`                            | 吊り下げの「VS」メダリオン                 |
+| `topic-board`                             | 論題を表示する掲示板（文字は焼き込まない） |
+| `podium-aff` / `podium-neg`               | 演台（緑 / 赤）                            |
+| `nameplate`                               | 話者のネームプレート（文字は焼き込まない） |
+| `mic`                                     | 紙のマイク                                 |
+| `speech-sign-aff` / `speech-sign-neg`     | 吹き出し看板（文字は焼き込まない）         |
+| `audience`                                | 観客席のシルエット一列                     |
+| `tree-1` / `tree-2`                       | 装飾の紙の木                               |
+| `prep-envelope-aff` / `prep-envelope-neg` | 封印付き準備封筒                           |
+| `magnifier`                               | 虫めがね（調査中の演出）                   |
+| `seal-stamp`                              | 「封印」スタンプ                           |
+| `gavel`                                   | 審査の木槌                                 |
+| `trophy`                                  | 優勝トロフィー                             |
+| `confetti`                                | 紙吹雪                                     |
 
 ## テスト
 

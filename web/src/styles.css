@@ -161,6 +161,26 @@ button.primary.big {
   margin: 18px auto 0;
 }
 
+/* ボタン内スピナー（デモモードの先行生成待ちなど） */
+.btn-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin-right: 10px;
+  vertical-align: -3px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  animation: spin 0.9s linear infinite;
+}
+
+.demo-note {
+  margin: 10px auto 0;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
 button.mini {
   font-family: var(--font);
   font-size: 12px;
@@ -554,6 +574,33 @@ button.mini:hover {
   color: var(--neg-deep);
   opacity: 1;
   transform: scale(1.12) rotate(-4deg);
+  outline: none;
+}
+
+/* 終了済み試合のデモ再生ボタン（ゴミ箱の左隣） */
+.ticket-replay {
+  position: absolute;
+  top: 7px;
+  right: 34px;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: none;
+  color: var(--aff);
+  display: inline-grid;
+  place-items: center;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  opacity: 0.75;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.ticket-replay:hover,
+.ticket-replay:focus-visible {
+  color: var(--aff-deep);
+  opacity: 1;
+  transform: scale(1.12) rotate(4deg);
   outline: none;
 }
 
@@ -979,17 +1026,38 @@ textarea {
   transform: translateY(-6px);
 }
 
+/* フォールバック SVG アバター（FbAvatar）の入れ物。サイズだけ与える */
 .avatar-placeholder {
   width: 110px;
   height: 130px;
-  border-radius: 40% 40% 30% 30%;
-  background: var(--kraft);
-  color: #fff;
-  font-weight: 900;
-  font-size: 26px;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
+}
+
+.fb-avatar .fb-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: fb-blink 4.6s infinite;
+}
+
+.fb-avatar .fb-mouth {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.fb-avatar.speaking .fb-mouth {
+  animation: fb-mouth 0.26s infinite alternate ease-in-out;
+}
+
+@keyframes fb-blink {
+  0%, 93%, 100% { transform: scaleY(1); }
+  95%, 97% { transform: scaleY(0.12); }
+}
+
+@keyframes fb-mouth {
+  from { transform: scaleY(0.45); }
+  to { transform: scaleY(1.7); }
 }
 
 .podium-desk {
@@ -1117,7 +1185,6 @@ textarea {
 .avatar-placeholder.small {
   width: 70px;
   height: 86px;
-  font-size: 18px;
 }
 
 .topic-board {

@@ -58,6 +58,12 @@ export interface MatchConfig {
   tts: boolean;
   /** Whether to advance phases automatically. */
   autoAdvance: boolean;
+  /**
+   * Demo mode: run all inference and TTS to completion first ("finished" is only set
+   * after every audio file is ready), then the client replays the match without
+   * generation waits.
+   */
+  demo?: boolean;
   limits: MatchLimits;
 }
 
