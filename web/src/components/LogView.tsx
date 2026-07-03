@@ -6,25 +6,37 @@ import { SIDE_LABEL } from "@debate/shared";
 function SpeechText({
   text,
   team,
+  resolveCitationTeam,
   onCite,
 }: {
   text: string;
   team: TeamKey;
+  resolveCitationTeam: (id: string, fallback: TeamKey) => TeamKey;
   onCite: (team: TeamKey, id: string) => void;
 }) {
-  const parts = text.split(/(\[[AN]-\d{2}\])/g);
+  const citePattern = /([［\[\(（【]?\s*([ANＡＮ])\s*[-ー－–—―]\s*(\d{1,2})\s*[］\]\)）】]?)/gi;
+  const parts: { text: string; id?: string }[] = [];
+  let lastIndex = 0;
+  for (const m of text.matchAll(citePattern)) {
+    if (m.index === undefined) continue;
+    if (m.index > lastIndex) parts.push({ text: text.slice(lastIndex, m.index) });
+    const prefix = m[2].toUpperCase() === "Ａ" ? "A" : m[2].toUpperCase() === "Ｎ" ? "N" : m[2].toUpperCase();
+    const id = `${prefix}-${m[3].padStart(2, "0")}`;
+    parts.push({ text: m[1], id });
+    lastIndex = m.index + m[1].length;
+  }
+  if (lastIndex < text.length) parts.push({ text: text.slice(lastIndex) });
   return (
     <span>
       {parts.map((p, i) => {
-        const m = p.match(/^\[([AN]-\d{2})\]$/);
-        if (m) {
+        if (p.id) {
           return (
-            <button key={i} className="cite-chip" onClick={() => onCite(team, m[1])}>
-              {m[1]}
+            <button key={i} className="cite-chip" onClick={() => onCite(resolveCitationTeam(p.id!, team), p.id!)}>
+              {p.id}
             </button>
           );
         }
-        return <span key={i}>{p}</span>;
+        return <span key={i}>{p.text}</span>;
       })}
     </span>
   );
@@ -38,6 +50,7 @@ function TypewriterSpeech({
   isLatest,
   finished,
   onDone,
+  resolveCitationTeam,
   onCite,
 }: {
   ev: SpeechEvent;
@@ -47,6 +60,7 @@ function TypewriterSpeech({
   isLatest: boolean;
   finished: boolean;
   onDone: (id: string) => void;
+  resolveCitationTeam: (id: string, fallback: TeamKey) => TeamKey;
   onCite: (team: TeamKey, id: string) => void;
 }) {
   const chars = [...ev.text];
@@ -141,7 +155,7 @@ function TypewriterSpeech({
         />
       )}
       <div className="speech-text">
-        <SpeechText text={visible} team={ev.team} onCite={onCite} />
+        <SpeechText text={visible} team={ev.team} resolveCitationTeam={resolveCitationTeam} onCite={onCite} />
         {animate && revealed < chars.length && <span className="caret">▌</span>}
       </div>
       {waitingAudio && <div className="audio-wait">🔊 音声を合成中…</div>}
@@ -164,6 +178,7 @@ export function LogView({
   audioOn,
   finishedIds,
   onSpeechDone,
+  resolveCitationTeam,
   onCite,
 }: {
   matchId: string;
@@ -171,9 +186,10 @@ export function LogView({
   audioOn: boolean;
   finishedIds: Set<string>;
   onSpeechDone: (id: string) => void;
+  resolveCitationTeam: (id: string, fallback: TeamKey) => TeamKey;
   onCite: (team: TeamKey, id: string) => void;
 }) {
-  const [showDeliberation, setShowDeliberation] = useState(false);
+  const [showDeliberation, setShowDeliberation] = useState(true);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const speeches = events.filter((e): e is SpeechEvent => e.type === "speech");
@@ -214,6 +230,7 @@ export function LogView({
             isLatest={ev.id === latestId}
             finished={finishedIds.has(ev.id)}
             onDone={onSpeechDone}
+            resolveCitationTeam={resolveCitationTeam}
             onCite={onCite}
           />
         ),

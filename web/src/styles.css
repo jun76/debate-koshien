@@ -509,12 +509,13 @@ button.mini:hover {
 
 .ticket {
   font-family: var(--font);
+  position: relative;
   text-align: left;
   background: #fdf6e6;
   border: 2px solid rgba(138, 106, 68, 0.4);
   border-left: 8px solid var(--gold);
   border-radius: 6px 14px 14px 6px;
-  padding: 10px 12px;
+  padding: 10px 38px 10px 12px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -525,6 +526,33 @@ button.mini:hover {
 
 .ticket:hover {
   transform: translateX(3px) rotate(-0.5deg);
+}
+
+.ticket-delete {
+  position: absolute;
+  top: 6px;
+  right: 7px;
+  width: 24px;
+  height: 24px;
+  border: 1.5px solid rgba(138, 106, 68, 0.38);
+  border-radius: 999px;
+  background: rgba(255, 251, 240, 0.94);
+  color: var(--ink-soft);
+  display: inline-grid;
+  place-items: center;
+  font-size: 13px;
+  line-height: 1;
+  font-family: var(--font);
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 2px 0 rgba(138, 106, 68, 0.12);
+}
+
+.ticket-delete:hover,
+.ticket-delete:focus-visible {
+  color: var(--neg-deep);
+  border-color: rgba(194, 56, 83, 0.55);
+  outline: none;
 }
 
 .ticket-topic {
@@ -720,7 +748,7 @@ textarea {
 }
 
 .header-logo {
-  font-size: 17px;
+  font-size: 20px;
   font-weight: 900;
   letter-spacing: 0.12em;
   color: var(--ink);
@@ -1087,9 +1115,9 @@ textarea {
   align-items: center;
   justify-content: center;
   text-align: center;
-  font-size: 14.5px;
+  font-size: 17px;
   font-weight: 900;
-  line-height: 1.5;
+  line-height: 1.38;
   color: var(--ink);
   overflow: hidden;
 }
@@ -1568,7 +1596,7 @@ textarea {
 .progress-parts {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 0;
   flex-wrap: wrap;
 }
 
@@ -1584,6 +1612,23 @@ textarea {
   align-items: center;
   gap: 2px;
   width: 58px;
+  position: relative;
+}
+
+.part-dot + .part-dot::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: -22px;
+  width: 44px;
+  height: 2px;
+  background: rgba(138, 106, 68, 0.35);
+  z-index: 0;
+}
+
+.part-dot.done + .part-dot.done::before,
+.part-dot.done + .part-dot.current::before {
+  background: rgba(44, 133, 122, 0.55);
 }
 
 .part-dot i {
@@ -1593,6 +1638,8 @@ textarea {
   border-radius: 50%;
   border: 2.5px solid var(--kraft-deep);
   background: var(--paper-2);
+  position: relative;
+  z-index: 1;
 }
 
 .part-dot.aff.done i {
@@ -1635,6 +1682,40 @@ textarea {
   border: 2px solid var(--kraft-deep);
   border-radius: 999px;
   padding: 4px 12px;
+}
+
+.thinking-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 460px;
+  min-height: 28px;
+  padding: 4px 12px;
+  border: 2px solid rgba(138, 106, 68, 0.38);
+  border-radius: 999px;
+  background: rgba(255, 251, 240, 0.9);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thinking-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 0 0 rgba(213, 151, 39, 0.38);
+  animation: pulseRing 1.2s ease-out infinite;
+  flex: 0 0 auto;
+}
+
+@keyframes pulseRing {
+  to {
+    box-shadow: 0 0 0 8px rgba(213, 151, 39, 0);
+  }
 }
 
 .gavel-mini {

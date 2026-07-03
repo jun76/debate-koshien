@@ -137,6 +137,18 @@ export function listMatches(): MatchSummary[] {
   return out.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
 
+export function deleteMatch(matchId: string): boolean {
+  const dir = matchDir(matchId);
+  const resolvedDir = path.resolve(dir);
+  const resolvedData = path.resolve(DATA_DIR);
+  if (!resolvedDir.startsWith(resolvedData + path.sep)) return false;
+  if (!fs.existsSync(resolvedDir)) return false;
+  fs.rmSync(resolvedDir, { recursive: true, force: true });
+  eventCache.delete(matchId);
+  listeners.delete(matchId);
+  return true;
+}
+
 /* ---------- 封印・審査・レビュー ---------- */
 
 export function saveSeal(matchId: string, seal: Seal): void {

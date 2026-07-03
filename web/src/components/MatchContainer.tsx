@@ -28,6 +28,9 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
   const detailRef = useRef<MatchDetail | null>(null);
   const processing = useRef(false);
   const runToken = useRef(0);
+  const speechWaiters = useRef(new Map<string, () => void>());
+  const speechPromises = useRef(new Map<string, Promise<void>>());
+  const pendingSpeechId = useRef<string | null>(null);
 
   useEffect(() => {
     fetchAvatars().then(setAvatars).catch(() => undefined);
@@ -45,6 +48,10 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
     detailRef.current = null;
     processing.current = false;
     runToken.current++;
+    speechWaiters.current.forEach((resolve) => resolve());
+    speechWaiters.current.clear();
+    speechPromises.current.clear();
+    pendingSpeechId.current = null;
   }, [id]);
 
   const avatarMap = useMemo(() => new Map(avatars.map((a) => [a.id, a])), [avatars]);
@@ -75,8 +82,11 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
       if (skip.length > 0) setFinishedIds((prev) => new Set([...prev, ...skip]));
       // 終了済みの試合を開いたら最初から結果画面へ
       if (detail.state.phase === "finished" || detail.state.phase === "reviewing") setView("result");
+      if (detail.state.phase === "preparing" && rawEvents.some((ev) => ev.type === "phase" && ev.phase === "preparing")) {
+        void push({ title: "準備フェーズ開始", sub: "Web調査 解禁", tone: "neutral" });
+      }
     }
-  }, [detail, live.state, rawEvents]);
+  }, [detail, live.state, push, rawEvents]);
 
   useEffect(() => {
     rawEventsRef.current = rawEvents;
@@ -86,6 +96,15 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
   useEffect(() => {
     if (!detail || baseline.current === null) return;
     const token = runToken.current;
+    const waitForSpeechDone = (sid: string) => {
+      const existing = speechPromises.current.get(sid);
+      if (existing) return existing;
+      const promise = new Promise<void>((resolve) => {
+        speechWaiters.current.set(sid, resolve);
+      });
+      speechPromises.current.set(sid, promise);
+      return promise;
+    };
 
     const drain = async () => {
       if (processing.current) return;
@@ -95,6 +114,11 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
           const ev = rawEventsRef.current[processed.current];
           const currentDetail = detailRef.current;
           if (!currentDetail) break;
+          if (pendingSpeechId.current && ev.type !== "audio") {
+            await waitForSpeechDone(pendingSpeechId.current);
+            pendingSpeechId.current = null;
+            if (token !== runToken.current) break;
+          }
 
           if (ev.type === "speech" && ev.partId !== lastPartId.current) {
             lastPartId.current = ev.partId;
@@ -115,7 +139,7 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
               tone: ev.vote === "affirmative" ? "aff" : "neg",
             });
           } else if (ev.type === "result") {
-            await push({ title: "判定発表！", sub: `${SIDE_LABEL[ev.winner]}の勝利`, tone: "gold" });
+            await push({ title: "判定発表！", sub: "結果発表へ", tone: "gold" });
           }
 
           if (token !== runToken.current) break;
@@ -123,8 +147,12 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
           if (ev.type === "phase") {
             setDisplayState({ phase: ev.phase, progress: ev.detail, updatedAt: ev.at });
           }
-          if (ev.type === "result") setView("result");
           processed.current++;
+          if (ev.type === "speech") {
+            void waitForSpeechDone(ev.id);
+            pendingSpeechId.current = ev.id;
+          }
+          if (ev.type === "result") setView("result");
         }
       } finally {
         processing.current = false;
@@ -174,6 +202,15 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
 
   const latestSpeech = [...events].reverse().find((e): e is SpeechEvent => e.type === "speech");
   const speaking = latestSpeech ? !finishedIds.has(latestSpeech.id) : false;
+  const markSpeechDone = (sid: string) => {
+    setFinishedIds((prev) => new Set(prev).add(sid));
+    const resolve = speechWaiters.current.get(sid);
+    if (resolve) {
+      speechWaiters.current.delete(sid);
+      speechPromises.current.delete(sid);
+      resolve();
+    }
+  };
 
   return (
     <div className="match-shell">
@@ -240,7 +277,7 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
           avatars={avatarMap}
           audioOn={audioOn && detail.ttsAvailable}
           finishedIds={finishedIds}
-          onSpeechDone={(sid) => setFinishedIds((prev) => new Set(prev).add(sid))}
+          onSpeechDone={markSpeechDone}
         />
       ) : (
         <ResultScreen detail={detail} events={events} avatars={avatarMap} />

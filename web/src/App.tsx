@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { MatchSummary } from "@debate/shared";
-import { fetchMatches } from "./api";
+import { deleteMatch, fetchMatches } from "./api";
 import { MatchContainer } from "./components/MatchContainer";
 import { SetupScreen } from "./components/SetupScreen";
 
@@ -38,12 +38,21 @@ export function App() {
     refreshMatches();
   };
 
+  const removeMatch = async (id: string) => {
+    await deleteMatch(id);
+    if (matchId === id) {
+      setMatchId(null);
+      history.replaceState(null, "", location.pathname);
+    }
+    refreshMatches();
+  };
+
   return (
     <div className="app-root">
       {matchId ? (
         <MatchContainer id={matchId} onExit={exitToSetup} />
       ) : (
-        <SetupScreen matches={matches} onOpen={openMatch} onCreated={openMatch} loadError={loadError} />
+        <SetupScreen matches={matches} onOpen={openMatch} onDeleted={removeMatch} onCreated={openMatch} loadError={loadError} />
       )}
     </div>
   );

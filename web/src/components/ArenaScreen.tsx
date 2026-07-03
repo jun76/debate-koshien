@@ -10,7 +10,7 @@ import type {
   TeamKey,
   VoteEvent,
 } from "@debate/shared";
-import { SIDE_LABEL } from "@debate/shared";
+import { SIDE_LABEL, teamOfSide } from "@debate/shared";
 import { fetchFormats } from "../api";
 import { Art } from "../art/Art";
 import { FbGavel, FbMagnifier, FbPrepEnvelope, FbSealStamp } from "../art/fallbacks";
@@ -35,7 +35,7 @@ function PrepPanel({ detail, events }: { detail: MatchDetail; events: MatchEvent
     return (
       <div className={`prep-tent-card tone-${tone} pop-in`} key={team}>
         <div className="tent-art-wrap">
-          <Art name={`prep-envelope-${tone}`} className="tent-art" fallback={<FbPrepEnvelope tone={tone} />} />
+          <Art name={`prep-envelope-${tone}`} className="tent-art" fallback={<FbPrepEnvelope tone={tone} sealed={Boolean(seal)} />} />
           {!seal && (
             <div className="tent-magnifier sway">
               <Art name="magnifier" className="magnifier-art" fallback={<FbMagnifier />} />
@@ -108,6 +108,7 @@ function ProgressBar({
   const donePartIds = new Set(speeches.map((s) => s.partId));
   const currentPartId = speeches.at(-1)?.partId;
   const phase = state?.phase;
+  const waitingText = state?.progress?.trim();
 
   return (
     <div className="arena-bottombar paper">
@@ -124,6 +125,12 @@ function ProgressBar({
         })}
       </div>
       <div className="bar-right">
+        {waitingText && phase !== "finished" && phase !== "aborted" && (
+          <span className="thinking-chip">
+            <span className="thinking-pulse" />
+            {waitingText}
+          </span>
+        )}
         {phase === "judging" && (
           <span className="judging-chip">
             <span className="gavel-mini">
@@ -172,6 +179,11 @@ export function ArenaScreen({
   const activeSpeech = latestSpeech && !finishedIds.has(latestSpeech.id) ? latestSpeech : null;
   const sealed: Record<TeamKey, boolean> = { A: Boolean(detail.seals.A), B: Boolean(detail.seals.B) };
   const inPrep = phase === "setup" || phase === "preparing" || phase === "sealed";
+  const resolveCitationTeam = (evidenceId: string, fallback: TeamKey) => {
+    if (evidenceId.startsWith("A-")) return teamOfSide(detail.config, "affirmative");
+    if (evidenceId.startsWith("N-")) return teamOfSide(detail.config, "negative");
+    return fallback;
+  };
 
   const signTexts: Record<TeamKey, string | null> = { A: null, B: null };
   for (const team of ["A", "B"] as TeamKey[]) {
@@ -200,6 +212,7 @@ export function ArenaScreen({
             audioOn={audioOn}
             finishedIds={finishedIds}
             onSpeechDone={onSpeechDone}
+            resolveCitationTeam={resolveCitationTeam}
             onCite={(team, evidenceId) => setSelectedEvidence({ team, id: evidenceId })}
           />
           <EvidencePanel

@@ -225,8 +225,8 @@ export function FbConfetti() {
   );
 }
 
-/** 準備フェーズの封筒（シーリングスタンプ付き） */
-export function FbPrepEnvelope({ tone }: { tone: "aff" | "neg" }) {
+/** 準備フェーズの封筒（調査中は半開き、封印後は閉じる） */
+export function FbPrepEnvelope({ tone, sealed = false }: { tone: "aff" | "neg"; sealed?: boolean }) {
   const main = tone === "aff" ? "#2e8073" : "#bf4050";
   const deep = tone === "aff" ? "#1f5d54" : "#8e2c3a";
   const pale = tone === "aff" ? "#e9f4f0" : "#faeaea";
@@ -235,20 +235,27 @@ export function FbPrepEnvelope({ tone }: { tone: "aff" | "neg" }) {
       {/* 封筒本体（裏面） */}
       <rect x="10" y="24" width="200" height="112" rx="10" fill="#e2cba0" />
       <rect x="6" y="18" width="200" height="112" rx="10" fill="#fdf6e6" stroke="#8a6a44" strokeWidth="3" />
-      {/* 下側の折り込み線 */}
-      <path d="M10 124 L106 78 L202 124" fill="none" stroke="#d9c49a" strokeWidth="2.5" />
-      {/* フラップ（上から中央へ折りたたまれた三角） */}
-      <path d="M8 22 L106 86 L204 22 Z" fill={pale} stroke="#8a6a44" strokeWidth="3" strokeLinejoin="round" />
-      {/* シーリングワックス（不定形の縁 + 印面） */}
-      <path
-        d="M106 60 q14 -4 20 6 q10 2 8 13 q6 9 -4 15 q-2 10 -14 9 q-10 6 -18 -2 q-12 1 -13 -11 q-8 -8 0 -16 q1 -11 12 -12 q4 -4 9 -2 Z"
-        fill={main}
-      />
-      <circle cx="106" cy="83" r="15" fill={deep} />
-      <circle cx="106" cy="83" r="11" fill="none" stroke={pale} strokeWidth="1.6" strokeDasharray="3 3" />
-      <path d="M106 76 l3 5 6 1 -4 4 1 6 -6 -3 -6 3 1 -6 -4 -4 6 -1 Z" fill={pale} />
-      {/* ワックスのハイライト */}
-      <path d="M96 70 q5 -4 11 -3" stroke="#ffffff66" strokeWidth="3" fill="none" strokeLinecap="round" />
+      {sealed ? (
+        <>
+          <path d="M10 124 L106 78 L202 124" fill="none" stroke="#d9c49a" strokeWidth="2.5" />
+          <path d="M8 22 L106 86 L204 22 Z" fill={pale} stroke="#8a6a44" strokeWidth="3" strokeLinejoin="round" />
+          <path
+            d="M106 60 q14 -4 20 6 q10 2 8 13 q6 9 -4 15 q-2 10 -14 9 q-10 6 -18 -2 q-12 1 -13 -11 q-8 -8 0 -16 q1 -11 12 -12 q4 -4 9 -2 Z"
+            fill={main}
+          />
+          <circle cx="106" cy="83" r="15" fill={deep} />
+          <circle cx="106" cy="83" r="11" fill="none" stroke={pale} strokeWidth="1.6" strokeDasharray="3 3" />
+          <path d="M106 76 l3 5 6 1 -4 4 1 6 -6 -3 -6 3 1 -6 -4 -4 6 -1 Z" fill={pale} />
+          <path d="M96 70 q5 -4 11 -3" stroke="#ffffff66" strokeWidth="3" fill="none" strokeLinecap="round" />
+        </>
+      ) : (
+        <>
+          <path d="M12 126 L106 78 L200 126" fill="#fffaf0" stroke="#d9c49a" strokeWidth="2.5" />
+          <path d="M10 22 L106 74 L202 22" fill="none" stroke="#d9c49a" strokeWidth="2.5" />
+          <path d="M22 18 L106 4 L192 18 L106 70 Z" fill={pale} stroke="#8a6a44" strokeWidth="3" strokeLinejoin="round" />
+          <path d="M42 22 L106 12 L170 22" fill="none" stroke="#ffffff88" strokeWidth="3" strokeLinecap="round" />
+        </>
+      )}
     </svg>
   );
 }

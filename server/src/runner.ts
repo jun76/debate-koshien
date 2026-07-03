@@ -79,6 +79,7 @@ export function startMatch(matchId: string): { ok: boolean; message?: string } {
 
   void run(config, ctl)
     .catch((err) => {
+      if (!getConfig(matchId)) return;
       if (err instanceof AbortError) {
         setPhase(matchId, "aborted");
       } else {

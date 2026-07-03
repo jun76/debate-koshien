@@ -20,6 +20,7 @@ import { ASSETS_DIR, DATA_DIR, WEB_DIST, matchPaths } from "./paths.js";
 import { abortMatch, isRunning, startMatch } from "./runner.js";
 import {
   createMatch,
+  deleteMatch,
   ensureDir,
   getConfig,
   getReview,
@@ -195,6 +196,14 @@ app.get("/api/matches/:id", (c) => {
     ttsAvailable: ttsAvailable(),
   };
   return c.json(detail);
+});
+
+app.delete("/api/matches/:id", (c) => {
+  const id = c.req.param("id");
+  if (isRunning(id)) abortMatch(id);
+  const deleted = deleteMatch(id);
+  if (!deleted) return c.json({ error: "試合が見つかりません" }, 404);
+  return c.json({ ok: true });
 });
 
 app.post("/api/matches/:id/phase", async (c) => {

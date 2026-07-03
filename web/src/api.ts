@@ -33,6 +33,7 @@ export const fetchHandout = (id: string, team: TeamKey) =>
 export const startMatch = (id: string) =>
   api<{ ok: boolean }>(`/api/matches/${id}/phase`, { method: "POST", body: JSON.stringify({ action: "start" }) });
 export const abortMatch = (id: string) => api<{ ok: boolean }>(`/api/matches/${id}/abort`, { method: "POST" });
+export const deleteMatch = (id: string) => api<{ ok: boolean }>(`/api/matches/${id}`, { method: "DELETE" });
 
 export interface LiveMatch {
   detail: MatchDetail | null;

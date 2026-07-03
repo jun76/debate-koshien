@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { MatchSummary, Phase } from "@debate/shared";
 import { Art } from "../art/Art";
 import { FbGavel, FbTrophy } from "../art/fallbacks";
@@ -26,14 +27,28 @@ export function phaseTone(phase: Phase): string {
 export function SetupScreen({
   matches,
   onOpen,
+  onDeleted,
   onCreated,
   loadError,
 }: {
   matches: MatchSummary[];
   onOpen: (id: string) => void;
+  onDeleted: (id: string) => Promise<void>;
   onCreated: (id: string) => void;
   loadError: string | null;
 }) {
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const doDelete = async (match: MatchSummary) => {
+    if (!confirm(`「${match.topic}」を削除しますか？\n関連データ一式も data フォルダから削除されます。`)) return;
+    setDeletingId(match.id);
+    try {
+      await onDeleted(match.id);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="setup-screen">
       <div className="lobby-title wobble-soft">
@@ -57,17 +72,41 @@ export function SetupScreen({
           <div className="rail-title">過去の試合</div>
           {matches.length === 0 && <div className="empty">まだ試合はありません</div>}
           {matches.map((m, i) => (
-            <button
+            <div
               key={m.id}
               className="ticket pop-in"
               style={{ animationDelay: `${Math.min(i * 60, 400)}ms` }}
-              type="button"
+              role="button"
+              tabIndex={0}
               onClick={() => onOpen(m.id)}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter" && e.key !== " ") return;
+                e.preventDefault();
+                onOpen(m.id);
+              }}
             >
+              <button
+                type="button"
+                className="ticket-delete"
+                aria-label="試合を削除"
+                title="試合を削除"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void doDelete(m);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter" && e.key !== " ") return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  void doDelete(m);
+                }}
+              >
+                {deletingId === m.id ? "…" : "🗑"}
+              </button>
               <span className={`phase-pill ${phaseTone(m.phase)}`}>{PHASE_LABEL[m.phase]}</span>
               <span className="ticket-topic">{m.topic}</span>
               <span className="ticket-date">{new Date(m.createdAt).toLocaleString("ja-JP")}</span>
-            </button>
+            </div>
           ))}
         </aside>
 
