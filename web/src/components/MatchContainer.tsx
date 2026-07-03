@@ -28,8 +28,9 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
   const detailRef = useRef<MatchDetail | null>(null);
   const processing = useRef(false);
   const runToken = useRef(0);
-  const speechWaiters = useRef(new Map<string, () => void>());
-  const speechPromises = useRef(new Map<string, Promise<void>>());
+  // finishedIds の ref ミラー。drain ループが「既に読み終わった発言か」を同期的に判定するために持つ
+  const finishedIdsRef = useRef<Set<string>>(new Set());
+  const speechWaiters = useRef(new Map<string, (() => void)[]>());
   const pendingSpeechId = useRef<string | null>(null);
 
   useEffect(() => {
@@ -48,9 +49,9 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
     detailRef.current = null;
     processing.current = false;
     runToken.current++;
-    speechWaiters.current.forEach((resolve) => resolve());
+    speechWaiters.current.forEach((list) => list.forEach((resolve) => resolve()));
     speechWaiters.current.clear();
-    speechPromises.current.clear();
+    finishedIdsRef.current = new Set();
     pendingSpeechId.current = null;
   }, [id]);
 
@@ -79,7 +80,15 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
       // 開いた時点で既に存在する発言はタイプライター・自動再生の対象にしない
       // （進行中の試合では最後の1件だけ演出を続ける）
       const skip = detail.state.phase === "debating" ? speechIds.slice(0, -1) : speechIds;
-      if (skip.length > 0) setFinishedIds((prev) => new Set([...prev, ...skip]));
+      if (skip.length > 0) {
+        for (const sid of skip) finishedIdsRef.current.add(sid);
+        setFinishedIds((prev) => new Set([...prev, ...skip]));
+      }
+      // 最後の1件を再生する場合は、後続イベントがその読み終わりを待つようにする
+      const replayId = speechIds.at(-1);
+      if (detail.state.phase === "debating" && replayId && !finishedIdsRef.current.has(replayId)) {
+        pendingSpeechId.current = replayId;
+      }
       // 終了済みの試合を開いたら最初から結果画面へ
       if (detail.state.phase === "finished" || detail.state.phase === "reviewing") setView("result");
       if (detail.state.phase === "preparing" && rawEvents.some((ev) => ev.type === "phase" && ev.phase === "preparing")) {
@@ -96,14 +105,26 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
   useEffect(() => {
     if (!detail || baseline.current === null) return;
     const token = runToken.current;
-    const waitForSpeechDone = (sid: string) => {
-      const existing = speechPromises.current.get(sid);
-      if (existing) return existing;
-      const promise = new Promise<void>((resolve) => {
-        speechWaiters.current.set(sid, resolve);
+
+    // audio イベントはペーシングの対象外。発言本体より数イベント後に記録されるため、
+    // キューで堰き止めると読み上げ中の発言が自分の音声を待ってタイムアウトしてしまう。
+    // 到着し次第 displayEvents へ反映する（drain 側は seq 重複で自然にスキップされる）。
+    const pendingAudio = rawEvents.filter((e) => e.type === "audio");
+    if (pendingAudio.length > 0) {
+      setDisplayEvents((prev) => {
+        const shown = new Set(prev.map((e) => e.seq));
+        const missing = pendingAudio.filter((e) => !shown.has(e.seq));
+        return missing.length > 0 ? [...prev, ...missing] : prev;
       });
-      speechPromises.current.set(sid, promise);
-      return promise;
+    }
+    const waitForSpeechDone = (sid: string) => {
+      // 既に読み終わっている発言は待たない（タイプライター完了後に次イベントが届いた場合）
+      if (finishedIdsRef.current.has(sid)) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        const list = speechWaiters.current.get(sid) ?? [];
+        list.push(resolve);
+        speechWaiters.current.set(sid, list);
+      });
     };
 
     const drain = async () => {
@@ -149,7 +170,6 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
           }
           processed.current++;
           if (ev.type === "speech") {
-            void waitForSpeechDone(ev.id);
             pendingSpeechId.current = ev.id;
           }
           if (ev.type === "result") setView("result");
@@ -200,15 +220,20 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
     }
   };
 
+  // フェーズはカットイン演出に合わせてペーシングした値、progress（生成中テキスト）は常に最新の SSE 値を使う
+  const arenaState: MatchState | null = displayState
+    ? { ...displayState, progress: live.state?.progress ?? displayState.progress }
+    : live.state;
+
   const latestSpeech = [...events].reverse().find((e): e is SpeechEvent => e.type === "speech");
   const speaking = latestSpeech ? !finishedIds.has(latestSpeech.id) : false;
   const markSpeechDone = (sid: string) => {
+    finishedIdsRef.current.add(sid);
     setFinishedIds((prev) => new Set(prev).add(sid));
-    const resolve = speechWaiters.current.get(sid);
-    if (resolve) {
+    const waiters = speechWaiters.current.get(sid);
+    if (waiters) {
       speechWaiters.current.delete(sid);
-      speechPromises.current.delete(sid);
-      resolve();
+      for (const resolve of waiters) resolve();
     }
   };
 
@@ -273,7 +298,8 @@ export function MatchContainer({ id, onExit }: { id: string; onExit: () => void 
           matchId={id}
           detail={detail}
           events={events}
-          state={displayState ?? live.state}
+          state={arenaState}
+          thinking={live.state?.thinking}
           avatars={avatarMap}
           audioOn={audioOn && detail.ttsAvailable}
           finishedIds={finishedIds}

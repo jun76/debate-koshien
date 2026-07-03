@@ -23,6 +23,27 @@ export function phaseTone(phase: Phase): string {
   return "live";
 }
 
+function TrashIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 6h18" />
+      <path d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6M14 11v6" />
+    </svg>
+  );
+}
+
 /** 設定画面（ロビー）。チーム編成ウィザードと過去試合のチケット一覧。 */
 export function SetupScreen({
   matches,
@@ -101,7 +122,7 @@ export function SetupScreen({
                   void doDelete(m);
                 }}
               >
-                {deletingId === m.id ? "…" : "🗑"}
+                {deletingId === m.id ? "…" : <TrashIcon />}
               </button>
               <span className={`phase-pill ${phaseTone(m.phase)}`}>{PHASE_LABEL[m.phase]}</span>
               <span className="ticket-topic">{m.topic}</span>

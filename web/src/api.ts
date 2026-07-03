@@ -57,10 +57,12 @@ export function useLiveMatch(id: string): LiveMatch {
         setDetail(d);
         setState(d.state);
         setEvents((prev) => {
-          // 既に SSE で先行しているかもしれないので長い方を採用
-          return d.events.length >= prev.length ? d.events : prev;
+          // 既に SSE で先行しているかもしれないので、末尾 seq が進んでいる方を採用
+          const prevLast = prev[prev.length - 1]?.seq ?? -1;
+          const nextLast = d.events[d.events.length - 1]?.seq ?? -1;
+          return nextLast >= prevLast ? d.events : prev;
         });
-        seenSeq.current = Math.max(seenSeq.current, d.events.length - 1);
+        seenSeq.current = Math.max(seenSeq.current, d.events[d.events.length - 1]?.seq ?? -1);
       })
       .catch((e) => setError(String(e)));
   }, [id]);

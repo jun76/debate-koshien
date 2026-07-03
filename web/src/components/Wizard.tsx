@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AvatarInfo, FormatDefinition, MemberRole, Provider, TeamKey } from "@debate/shared";
 import { ROLE_LABEL } from "@debate/shared";
 import { api, fetchAvatars, fetchFormats, fetchProviders, startMatch } from "../api";
@@ -22,6 +22,7 @@ interface TeamForm {
 
 const EFFORTS = ["", "low", "medium", "high"];
 const ROLES: MemberRole[] = ["researcher", "constructive", "questioner", "rebuttal", "strategist"];
+const PROVIDERS: Provider[] = ["mock", "claude", "codex", "opencode"];
 
 function newMember(avatarId = ""): MemberForm {
   return { name: "", provider: "mock", model: "", reasoningEffort: "", avatarId, role: "constructive" };
@@ -29,6 +30,46 @@ function newMember(avatarId = ""): MemberForm {
 
 function newTeam(key: TeamKey): TeamForm {
   return { name: `チーム${key}`, mode: "council", captainIndex: 0, members: [newMember()] };
+}
+
+/* ---------- 設定の JSON インポート / エクスポート ---------- */
+
+interface WizardConfigFile {
+  version: number;
+  topic: string;
+  formatId: string;
+  affirmative: "A" | "B" | "random";
+  teams: Record<TeamKey, TeamForm>;
+  judges: MemberForm[];
+  reviewer: MemberForm;
+  tts: boolean;
+}
+
+function sanitizeMember(raw: unknown): MemberForm {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  return {
+    name: typeof r.name === "string" ? r.name : "",
+    provider: PROVIDERS.includes(r.provider as Provider) ? (r.provider as Provider) : "mock",
+    model: typeof r.model === "string" ? r.model : "",
+    reasoningEffort: typeof r.reasoningEffort === "string" ? r.reasoningEffort : "",
+    avatarId: typeof r.avatarId === "string" ? r.avatarId : "",
+    role: ROLES.includes(r.role as MemberRole) ? (r.role as MemberRole) : "constructive",
+  };
+}
+
+function sanitizeTeam(raw: unknown, key: TeamKey): TeamForm {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const members =
+    Array.isArray(r.members) && r.members.length > 0
+      ? r.members.slice(0, 5).map(sanitizeMember)
+      : [newMember()];
+  const captainIndex = Number.isInteger(r.captainIndex) ? (r.captainIndex as number) : 0;
+  return {
+    name: typeof r.name === "string" && r.name ? r.name : `チーム${key}`,
+    mode: r.mode === "roles" ? "roles" : "council",
+    captainIndex: Math.min(Math.max(captainIndex, 0), members.length - 1),
+    members,
+  };
 }
 
 export function Wizard({ onCreated }: { onCreated: (id: string) => void }) {
@@ -47,6 +88,7 @@ export function Wizard({ onCreated }: { onCreated: (id: string) => void }) {
   const [tts, setTts] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     fetchFormats().then(setFormats).catch(() => undefined);
@@ -71,6 +113,55 @@ export function Wizard({ onCreated }: { onCreated: (id: string) => void }) {
       while (next.length < n) next.push(newMember());
       return next.slice(0, n);
     });
+  };
+
+  /** 現在の入力値一式を JSON ファイルとしてダウンロードする */
+  const exportConfig = () => {
+    const data: WizardConfigFile = {
+      version: 1,
+      topic,
+      formatId,
+      affirmative,
+      teams,
+      judges,
+      reviewer,
+      tts,
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "debate-setup.json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  /** JSON ファイルから入力値一式を復元する（欠けたフィールドは既定値で補う） */
+  const importConfig = async (file: File) => {
+    setError(null);
+    try {
+      const raw = JSON.parse(await file.text()) as Record<string, unknown>;
+      if (typeof raw !== "object" || raw === null) throw new Error("JSON オブジェクトではありません");
+
+      if (typeof raw.topic === "string") setTopic(raw.topic);
+      if (typeof raw.formatId === "string" && (formats.length === 0 || formats.some((f) => f.id === raw.formatId))) {
+        setFormatId(raw.formatId);
+      }
+      if (raw.affirmative === "A" || raw.affirmative === "B" || raw.affirmative === "random") {
+        setAffirmative(raw.affirmative);
+      }
+      const teamsRaw = (raw.teams ?? {}) as Record<string, unknown>;
+      setTeams({ A: sanitizeTeam(teamsRaw.A, "A"), B: sanitizeTeam(teamsRaw.B, "B") });
+
+      let importedJudges = Array.isArray(raw.judges) && raw.judges.length > 0 ? raw.judges.slice(0, 5).map(sanitizeMember) : [newMember()];
+      if (importedJudges.length % 2 === 0) importedJudges = importedJudges.slice(0, -1);
+      setJudges(importedJudges);
+      setJudgeCount(importedJudges.length);
+
+      setReviewer(sanitizeMember(raw.reviewer));
+      if (typeof raw.tts === "boolean") setTts(raw.tts && ttsAvailable);
+    } catch (e) {
+      setError(`設定ファイルを読み込めません: ${e instanceof Error ? e.message : String(e)}`);
+    }
   };
 
   const submit = async () => {
@@ -253,7 +344,28 @@ export function Wizard({ onCreated }: { onCreated: (id: string) => void }) {
 
   return (
     <div className="wizard">
-      <h2>新しい試合</h2>
+      <div className="wizard-head">
+        <h2>新しい試合</h2>
+        <div className="wizard-io">
+          <button type="button" className="mini" onClick={exportConfig}>
+            ⬇ 設定をエクスポート
+          </button>
+          <button type="button" className="mini" onClick={() => importInputRef.current?.click()}>
+            ⬆ インポート
+          </button>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".json,application/json"
+            hidden
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void importConfig(file);
+              e.target.value = "";
+            }}
+          />
+        </div>
+      </div>
 
       <section className="card">
         <h3>論題</h3>

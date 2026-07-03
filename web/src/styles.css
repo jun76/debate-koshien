@@ -529,15 +529,15 @@ button.mini:hover {
 }
 
 .ticket-delete {
+  /* 赤いゴミ箱アイコンの直置き（ボタンの縁・背景なし） */
   position: absolute;
-  top: 6px;
-  right: 7px;
-  width: 24px;
-  height: 24px;
-  border: 1.5px solid rgba(138, 106, 68, 0.38);
-  border-radius: 999px;
-  background: rgba(255, 251, 240, 0.94);
-  color: var(--ink-soft);
+  top: 7px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: none;
+  color: var(--neg);
   display: inline-grid;
   place-items: center;
   font-size: 13px;
@@ -545,14 +545,21 @@ button.mini:hover {
   font-family: var(--font);
   cursor: pointer;
   padding: 0;
-  box-shadow: 0 2px 0 rgba(138, 106, 68, 0.12);
+  opacity: 0.75;
+  transition: opacity 0.12s ease, transform 0.12s ease;
 }
 
 .ticket-delete:hover,
 .ticket-delete:focus-visible {
   color: var(--neg-deep);
-  border-color: rgba(194, 56, 83, 0.55);
+  opacity: 1;
+  transform: scale(1.12) rotate(-4deg);
   outline: none;
+}
+
+/* ステータスバッジは文字列長にフィットさせる（flex 縦積みで伸びないように） */
+.ticket .phase-pill {
+  align-self: flex-start;
 }
 
 .ticket-topic {
@@ -962,6 +969,7 @@ textarea {
 }
 
 .stage-member {
+  position: relative;
   transition: transform 0.25s ease;
   filter: drop-shadow(0 4px 6px rgba(74, 56, 38, 0.3));
 }
@@ -1078,12 +1086,44 @@ textarea {
   animation-delay: 0.48s;
 }
 
+.stage-center-block {
+  position: relative;
+  align-self: flex-end;
+  margin-bottom: 4px;
+}
+
+/* 審査員席: テーマ看板の後ろから頭を出す */
+.judge-bench {
+  position: absolute;
+  bottom: 54px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 1;
+}
+
+.judge-bench .judge-seat {
+  position: relative;
+  margin: 0 -26px;
+  filter: drop-shadow(0 3px 4px rgba(74, 56, 38, 0.25));
+}
+
+.judge-bench.count-5 .judge-seat {
+  margin: 0 -42px;
+}
+
+.avatar-placeholder.small {
+  width: 70px;
+  height: 86px;
+  font-size: 18px;
+}
+
 .topic-board {
   position: relative;
   width: 340px;
   height: 120px;
-  align-self: flex-end;
-  margin-bottom: 4px;
   z-index: 3;
 }
 
@@ -1136,6 +1176,35 @@ textarea {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+/* セリフバルーン内の思考中表示（三点リーダーをアニメーション） */
+
+.sign-thinking {
+  color: var(--ink-soft);
+  font-weight: 900;
+}
+
+.sign-thinking .ellipsis::after {
+  content: "";
+  display: inline-block;
+  min-width: 1.6em;
+  animation: ellipsis 1.4s steps(1) infinite;
+}
+
+@keyframes ellipsis {
+  0% {
+    content: "";
+  }
+  25% {
+    content: ".";
+  }
+  50% {
+    content: "..";
+  }
+  75% {
+    content: "...";
+  }
 }
 
 /* アバター共通 */
@@ -1582,15 +1651,16 @@ textarea {
   opacity: 0.7;
 }
 
-/* 進行バー */
+/* 進行表示（パネルなしでステージ直下の中央に置く） */
 
 .arena-bottombar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 14px;
+  justify-content: center;
+  gap: 20px;
   flex-wrap: wrap;
-  padding: 10px 16px;
+  padding: 0 16px;
+  margin: 10px 0 12px;
 }
 
 .progress-parts {
@@ -1660,10 +1730,9 @@ textarea {
 
 .part-dot em {
   font-style: normal;
-  font-size: 9px;
+  font-size: 11px;
   color: var(--ink-soft);
   white-space: nowrap;
-  transform: scale(0.9);
 }
 
 .bar-right {
@@ -1730,9 +1799,22 @@ textarea {
 }
 
 .bar-progress {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--ink-soft);
+}
+
+.wizard-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.wizard-io {
+  display: flex;
+  gap: 8px;
 }
 
 .arena-vignette {

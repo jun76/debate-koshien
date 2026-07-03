@@ -65,12 +65,16 @@ function TypewriterSpeech({
 }) {
   const chars = [...ev.text];
   const [revealed, setRevealed] = useState(finished || !isLatest ? chars.length : 0);
-  const [audioTimedOut, setAudioTimedOut] = useState(false);
-  const [audioStarted, setAudioStarted] = useState(false);
+  const [audioFailed, setAudioFailed] = useState(false);
+  const [needsGesture, setNeedsGesture] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const revealedRef = useRef(0);
   const animate = isLatest && !finished;
-  const useAudio = animate && audioOn && audio && !audioTimedOut;
-  const waitingAudio = animate && audioOn && !audio && !audioTimedOut;
+  const wantAudio = animate && audioOn && !audioFailed;
+  const useAudio = wantAudio && Boolean(audio);
+  const waitingAudio = wantAudio && !audio;
+  // 自動再生がブロックされている間は無音の文字送りで進め、音声が始まったら音声同期に切り替える
+  const audioDriving = useAudio && !needsGesture;
 
   useEffect(() => {
     if (finished || !isLatest) {
@@ -78,19 +82,22 @@ function TypewriterSpeech({
       return;
     }
     setRevealed(0);
-    setAudioTimedOut(false);
-    setAudioStarted(false);
+    setAudioFailed(false);
+    setNeedsGesture(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ev.id, finished, isLatest]);
 
-  // 音声なし（または OFF）のタイプライター
   useEffect(() => {
-    if (!animate || useAudio || waitingAudio) return;
+    revealedRef.current = revealed;
+  }, [revealed]);
+
+  // 音声なし（OFF / 失敗 / 自動再生ブロック中）のタイプライター
+  useEffect(() => {
+    if (!animate || audioDriving || waitingAudio) return;
     const timer = setInterval(() => {
       setRevealed((r) => {
         if (r >= chars.length) {
           clearInterval(timer);
-          onDone(ev.id);
           return r;
         }
         return r + 2;
@@ -98,21 +105,54 @@ function TypewriterSpeech({
     }, 40);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [animate, useAudio, waitingAudio, ev.id]);
+  }, [animate, audioDriving, waitingAudio, ev.id]);
+
+  // 文字送り完了の通知。updater 内で親の setState を呼ぶと React が警告するため effect で行う。
+  // 音声再生中は onEnded が完了を通知する（文字が先に出揃っても音声を途中で切らない）。
+  useEffect(() => {
+    if (!animate || audioDriving) return;
+    if (revealed >= chars.length) onDone(ev.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [animate, audioDriving, revealed, ev.id]);
 
   // 音声待ちタイムアウト（合成が遅い・失敗した場合は文字送りに切り替える）
   useEffect(() => {
     if (!waitingAudio) return;
-    const t = setTimeout(() => setAudioTimedOut(true), 45_000);
+    const t = setTimeout(() => setAudioFailed(true), 45_000);
     return () => clearTimeout(t);
   }, [waitingAudio]);
 
-  // ブラウザの自動再生制限などで隠し audio が進まない場合は文字送りへ切り替える
+  // 再生制御。autoplay 属性ではなく明示的に play() し、ブロックされたら
+  // 最初のユーザー操作（pointerdown）で文字送り位置にシークしてから再試行する。
   useEffect(() => {
-    if (!useAudio || audioStarted) return;
-    const t = setTimeout(() => setAudioTimedOut(true), 3_000);
-    return () => clearTimeout(t);
-  }, [useAudio, audioStarted]);
+    if (!useAudio) return;
+    const el = audioRef.current;
+    if (!el) return;
+    let cancelled = false;
+    const tryPlay = () => {
+      if (audio && audio.durationMs > 0 && revealedRef.current > 0) {
+        el.currentTime = (revealedRef.current / Math.max(chars.length, 1)) * (audio.durationMs / 1000);
+      }
+      el.play()
+        .then(() => {
+          if (!cancelled) setNeedsGesture(false);
+        })
+        .catch(() => {
+          if (!cancelled) setNeedsGesture(true);
+        });
+    };
+    tryPlay();
+    const onGesture = () => {
+      if (el.paused && !el.ended) tryPlay();
+    };
+    document.addEventListener("pointerdown", onGesture);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("pointerdown", onGesture);
+      el.pause();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useAudio, ev.id]);
 
   const visible = revealed >= chars.length ? ev.text : chars.slice(0, revealed).join("");
   const speakerSide = SIDE_LABEL[ev.side];
@@ -138,11 +178,9 @@ function TypewriterSpeech({
         <audio
           ref={audioRef}
           src={`/api/matches/${matchId}/audio/${ev.id}`}
-          autoPlay
-          onPlay={() => setAudioStarted(true)}
           onTimeUpdate={(e) => {
             const el = e.currentTarget;
-            if (el.currentTime > 0) setAudioStarted(true);
+            if (el.paused) return;
             if (audio && audio.durationMs > 0) {
               setRevealed(Math.min(chars.length, Math.ceil((el.currentTime * 1000 * chars.length) / audio.durationMs)));
             }
@@ -151,7 +189,7 @@ function TypewriterSpeech({
             setRevealed(chars.length);
             onDone(ev.id);
           }}
-          onError={() => setAudioTimedOut(true)}
+          onError={() => setAudioFailed(true)}
         />
       )}
       <div className="speech-text">
@@ -159,6 +197,7 @@ function TypewriterSpeech({
         {animate && revealed < chars.length && <span className="caret">▌</span>}
       </div>
       {waitingAudio && <div className="audio-wait">🔊 音声を合成中…</div>}
+      {needsGesture && <div className="audio-wait">🔇 ブラウザが自動再生をブロックしています — 画面をクリックすると音声が始まります</div>}
       {ev.warnings.length > 0 && (
         <div className="warnings">
           {ev.warnings.map((w, i) => (

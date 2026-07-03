@@ -9,6 +9,7 @@ import type {
   Review,
   Seal,
   TeamKey,
+  ThinkingInfo,
   Verdict,
 } from "@debate/shared";
 import { DATA_DIR, matchDir, matchPaths } from "./paths.js";
@@ -68,7 +69,9 @@ export function appendEvent<T extends Omit<MatchEvent, "seq" | "at">>(
   ev: T,
 ): MatchEvent {
   const events = readEvents(matchId);
-  const full = { ...ev, seq: events.length, at: new Date().toISOString() } as unknown as MatchEvent;
+  // 壊れた行を読み飛ばした場合でも seq が重複しないよう、末尾 seq + 1 を採番する
+  const last = events[events.length - 1];
+  const full = { ...ev, seq: last ? last.seq + 1 : 0, at: new Date().toISOString() } as unknown as MatchEvent;
   const file = matchPaths.debateLog(matchId);
   ensureDir(path.dirname(file));
   fs.appendFileSync(file, JSON.stringify(full) + "\n", "utf8");
@@ -117,7 +120,24 @@ export function setPhase(matchId: string, phase: Phase, detail?: string): void {
 
 export function setProgress(matchId: string, progress: string): void {
   const st = getState(matchId);
-  setState(matchId, { phase: st.phase, error: st.error, progress });
+  setState(matchId, { phase: st.phase, error: st.error, thinking: st.thinking, progress });
+}
+
+/**
+ * 思考中情報の更新。キー単位で set / clear する（準備フェーズは両チームが並行するため、
+ * 単一スロットではなくキー付きで持つ）。フェーズ遷移（setPhase）で全てクリアされる。
+ */
+export function updateThinking(matchId: string, key: string, entry: ThinkingInfo | null): void {
+  const st = getState(matchId);
+  const thinking = { ...(st.thinking ?? {}) };
+  if (entry) thinking[key] = entry;
+  else delete thinking[key];
+  setState(matchId, {
+    phase: st.phase,
+    error: st.error,
+    progress: st.progress,
+    thinking: Object.keys(thinking).length > 0 ? thinking : undefined,
+  });
 }
 
 export function listMatches(): MatchSummary[] {

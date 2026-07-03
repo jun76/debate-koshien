@@ -72,11 +72,22 @@ export type Phase =
   | "aborted"
   | "error";
 
+/** いま生成中（思考中）のエージェント。UI がアバター付近にバルーンを出すための情報 */
+export interface ThinkingInfo {
+  scope: "team" | "judge" | "reviewer";
+  team?: TeamKey;
+  /** 思考中のエージェント ID（チームメンバー ID / 審査員 ID / reviewer） */
+  agentIds: string[];
+  label: string;
+}
+
 export interface MatchState {
   phase: Phase;
   updatedAt: string;
   /** Fine-grained progress text shown while running. */
   progress?: string;
+  /** 進行主体ごとの思考中情報（キー: "team-A" / "team-B" / "judge" / "reviewer"） */
+  thinking?: Record<string, ThinkingInfo>;
   error?: string;
 }
 

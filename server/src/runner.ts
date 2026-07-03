@@ -33,6 +33,7 @@ import {
   saveVerdict,
   setPhase,
   setProgress,
+  updateThinking,
 } from "./store.js";
 import { AbortError, prepareTeamHandout, produceUtterance, type RunControl } from "./strategies.js";
 import { enqueueSynthesis, speakableText, ttsAvailable } from "./tts.js";
@@ -458,6 +459,11 @@ async function runJudging(config: MatchConfig, ctl: RunControl): Promise<void> {
     if (existing.has(judge.id)) continue;
     ctl.checkAborted();
     setProgress(config.id, `審査員 ${judge.name} が判定中`);
+    updateThinking(config.id, "judge", {
+      scope: "judge",
+      agentIds: [judge.id],
+      label: "判定を検討中",
+    });
     const workspace = matchPaths.judgeWorkspace(config.id, judge.id);
     ensureDir(workspace);
 
@@ -482,6 +488,7 @@ async function runJudging(config: MatchConfig, ctl: RunControl): Promise<void> {
       });
       verdict = normalizeVerdict(extractJsonObject(res.output), judge.id, judge.name);
     }
+    updateThinking(config.id, "judge", null);
     if (!verdict) throw new Error(`審査員 ${judge.name} の判定を JSON として解釈できない`);
 
     saveVerdict(config.id, verdict);
@@ -563,6 +570,11 @@ async function runReview(config: MatchConfig, ctl: RunControl): Promise<void> {
   const workspace = matchPaths.judgeWorkspace(config.id, "reviewer");
   ensureDir(workspace);
 
+  updateThinking(config.id, "reviewer", {
+    scope: "reviewer",
+    agentIds: [config.reviewer.id],
+    label: "感想戦レビューを執筆中",
+  });
   let review: Review | undefined;
   for (let attempt = 0; attempt < 2 && !review; attempt++) {
     ctl.checkAborted();

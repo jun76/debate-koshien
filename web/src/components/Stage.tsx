@@ -1,4 +1,4 @@
-import type { AgentConfig, AvatarInfo, MatchConfig, Side, TeamKey } from "@debate/shared";
+import type { AgentConfig, AvatarInfo, MatchConfig, Side, TeamKey, ThinkingInfo } from "@debate/shared";
 import { SIDE_LABEL } from "@debate/shared";
 import { Art } from "../art/Art";
 import {
@@ -28,6 +28,7 @@ export function Stage({
   speakingTeam,
   topic,
   signTexts,
+  thinking,
 }: {
   config: MatchConfig;
   avatars: Map<string, AvatarInfo>;
@@ -35,9 +36,16 @@ export function Stage({
   speakingTeam: TeamKey | null;
   topic: string;
   signTexts: Record<TeamKey, string | null>;
+  thinking?: Record<string, ThinkingInfo>;
 }) {
   const left: TeamKey = config.affirmative;
   const right: TeamKey = left === "A" ? "B" : "A";
+
+  // チームごとの思考中ラベル（セリフバルーンに「思考中…」を出すため）
+  const teamThinking: Record<TeamKey, string | null> = { A: null, B: null };
+  for (const info of Object.values(thinking ?? {})) {
+    if (info.scope === "team" && info.team) teamThinking[info.team] = info.label;
+  }
 
   const teamGroup = (team: TeamKey, side: Side) => {
     const t = config.teams[team];
@@ -109,10 +117,19 @@ export function Stage({
   const sign = (team: TeamKey, side: Side) => {
     const tone = side === "affirmative" ? "aff" : "neg";
     const text = signTexts[team];
+    const thinkingLabel = teamThinking[team];
     return (
       <div className={`speech-sign sign-${tone} wobble-soft`}>
         <Art name={`speech-sign-${tone}`} className="sign-art" fallback={<FbSpeechSign tone={tone} />} />
-        <div className="sign-text">{text ?? "よろしくお願いします！"}</div>
+        <div className="sign-text">
+          {thinkingLabel ? (
+            <span className="sign-thinking" title={thinkingLabel}>
+              思考中<span className="ellipsis" />
+            </span>
+          ) : (
+            (text ?? "よろしくお願いします！")
+          )}
+        </div>
       </div>
     );
   };
@@ -157,10 +174,27 @@ export function Stage({
 
       <div className="stage-floor">
         {teamGroup(left, "affirmative")}
-        <div className="topic-board pop-in">
-          <Art name="topic-board" className="topic-board-art" fallback={<FbTopicBoard />} />
-          <div className="topic-ribbon">ディベートテーマ</div>
-          <div className="topic-text">{topic}</div>
+        <div className="stage-center-block">
+          {/* 審査員席: テーマ看板の後ろから顔を出す */}
+          <div className={`judge-bench count-${config.judges.length}`}>
+            {config.judges.map((judge) => {
+              const avatar = judge.avatarId ? avatars.get(judge.avatarId) : undefined;
+              return (
+                <div key={judge.id} className="judge-seat" title={judge.name}>
+                  {avatar ? (
+                    <AvatarRenderer avatar={avatar} speaking={false} size={150} maxHeight={195} />
+                  ) : (
+                    <div className="avatar-placeholder small">{judge.name.slice(0, 2)}</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div className="topic-board pop-in">
+            <Art name="topic-board" className="topic-board-art" fallback={<FbTopicBoard />} />
+            <div className="topic-ribbon">ディベートテーマ</div>
+            <div className="topic-text">{topic}</div>
+          </div>
         </div>
         {teamGroup(right, "negative")}
       </div>

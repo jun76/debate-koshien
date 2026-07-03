@@ -8,6 +8,7 @@ import type {
   PrepEvent,
   SpeechEvent,
   TeamKey,
+  ThinkingInfo,
   VoteEvent,
 } from "@debate/shared";
 import { SIDE_LABEL, teamOfSide } from "@debate/shared";
@@ -111,7 +112,7 @@ function ProgressBar({
   const waitingText = state?.progress?.trim();
 
   return (
-    <div className="arena-bottombar paper">
+    <div className="arena-bottombar">
       <div className="progress-parts">
         <span className="bar-label">進行</span>
         {format?.parts.map((p) => {
@@ -139,7 +140,6 @@ function ProgressBar({
             審査中 {votes.length}/{judgeTotal}
           </span>
         )}
-        <span className="bar-progress">{state?.progress ?? ""}</span>
       </div>
     </div>
   );
@@ -150,6 +150,7 @@ export function ArenaScreen({
   detail,
   events,
   state,
+  thinking,
   avatars,
   audioOn,
   finishedIds,
@@ -159,6 +160,8 @@ export function ArenaScreen({
   detail: MatchDetail;
   events: MatchEvent[];
   state: MatchState | null;
+  /** リアルタイムの思考中情報（演出でペーシングされる state とは別に、常に最新を渡す） */
+  thinking?: Record<string, ThinkingInfo>;
   avatars: Map<string, AvatarInfo>;
   audioOn: boolean;
   finishedIds: Set<string>;
@@ -200,7 +203,10 @@ export function ArenaScreen({
         speakingTeam={activeSpeech?.team ?? null}
         topic={detail.config.topic}
         signTexts={signTexts}
+        thinking={thinking}
       />
+
+      <ProgressBar format={format} events={events} state={state} votes={votes} judgeTotal={detail.config.judges.length} />
 
       {inPrep ? (
         <PrepPanel detail={detail} events={events} />
@@ -224,8 +230,6 @@ export function ArenaScreen({
           />
         </div>
       )}
-
-      <ProgressBar format={format} events={events} state={state} votes={votes} judgeTotal={detail.config.judges.length} />
     </div>
   );
 }
