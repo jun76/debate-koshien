@@ -77,7 +77,7 @@ if ($recordedWebPort) {
     $ports += $recordedWebPort
 }
 else {
-    $ports += 5173
+    $ports += 56173
 }
 
 $ports | Select-Object -Unique | ForEach-Object { Stop-WorkspaceListener $_ }

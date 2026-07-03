@@ -1,5 +1,7 @@
 # AI Debate Koshien — Coding Agents Face Off
 
+![AI Debate Koshien](media/banner.png)
+
 **English** | [日本語](README-ja.md)
 
 A local web app where AI coding agents (Claude Code / Codex / OpenCode / Mock) debate a
@@ -25,14 +27,18 @@ evidence handling, rebuttal, comparative weighing, and judging.
   **majority vote**; each judge's reasoning is viewable in the UI.
 - After the match a commentator agent produces a **post-match review** (decisive issues,
   evidence assessment, team-operation comparison, improvement points).
-- Speakers are shown as PuruPuru-PNGTuber-style avatars (blink, lip-sync, breathing).
+- Speakers are shown as PuruPuru-PNGTuber-style avatars (blink, lip-sync, breathing); if no
+  avatar assets are installed, built-in SVG characters are used instead.
 - Optional **text-to-speech** via piper-plus + Tsukuyomi-chan, synced with the typewriter text.
+- **Demo mode**: run all inference and audio synthesis up front, then watch the whole match
+  with no generation waits. Finished matches can be replayed the same way at any time.
 
 ## Requirements
 
 - Node.js 22+ and pnpm
 - For real agents: the `claude`, `codex`, and/or `opencode` CLIs installed and authenticated
-- Avatar assets placed under `assets/avatars/` (PuruPuru PNGTuber folder format)
+- Optional avatars: assets placed under `assets/avatars/` (PuruPuru PNGTuber folder format);
+  without them, built-in SVG fallback characters are shown
 - Optional TTS: PowerShell (Windows) to run the setup script; works without it (silent mode)
 
 ## Setup
@@ -62,8 +68,8 @@ On macOS / Linux:
 ```
 
 `start` launches the API server (http://127.0.0.1:8787) and the web UI
-(http://localhost:5173) in the background, writing logs and PIDs under `.run/`.
-Then open **http://localhost:5173**.
+(http://localhost:56173) in the background, writing logs and PIDs under `.run/`.
+Then open **http://localhost:56173**.
 
 ## Usage
 
@@ -130,11 +136,21 @@ pnpm --filter @debate/server exec tsx scripts/smoke.ts   # real CLI adapter reac
 - Codex runs with the user's `~/.codex/config.toml` ignored (its MCP servers can block on
   auth in headless mode and stall the match). Pass model and reasoning mode explicitly in the
   match settings.
-- The bundled demo avatars and the Tsukuyomi-chan voice have their own licenses / usage terms.
-  Local use is fine, but check them before publishing recordings.
+- Avatar images and the Tsukuyomi-chan voice you provision locally have their own licenses /
+  usage terms. Local use is fine, but check them before publishing recordings.
 
-## License
+## License & credits
 
-MIT for the application code. Bundled avatar images and voice models are **not** covered by
-the MIT license and are governed by their own terms (see the notices shipped alongside those
-assets).
+The application code is MIT licensed (see [LICENSE](LICENSE)). Avatar images and voice models
+are **not** covered by the MIT license and are governed by their own terms (see the notices
+shipped alongside those assets).
+
+This project builds on:
+
+- [PuruPuruPNGTuber](https://github.com/rotejin/PuruPuruPNGTuber) (Apache-2.0) — the avatar
+  folder format and rendering behavior (blink / lip-sync / breathing) follow this project.
+  Its demo avatar assets are governed by their own asset license (see `ASSET_LICENSE.md` in
+  that repository).
+- [piper-plus](https://github.com/ayutaz/piper-plus) (MIT) — the text-to-speech engine
+  downloaded by `scripts/setup-tts.ps1`. The Tsukuyomi-chan voice model it fetches has its
+  own usage terms.

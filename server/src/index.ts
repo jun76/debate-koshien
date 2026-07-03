@@ -348,7 +348,7 @@ app.get("*", (c) => {
     const index = serveFile(path.join(WEB_DIST, "index.html"));
     if (index) return index;
   }
-  return c.text("web UI は未ビルドです。開発時は http://localhost:5173 を使ってください。", 404);
+  return c.text("web UI は未ビルドです。開発時は http://localhost:56173 を使ってください。", 404);
 });
 
 ensureDir(DATA_DIR);

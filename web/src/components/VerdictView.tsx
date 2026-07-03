@@ -1,6 +1,5 @@
 import type { AvatarInfo, MatchConfig, ResultEvent, Verdict } from "@debate/shared";
 import { SIDE_LABEL } from "@debate/shared";
-import { FbAvatar } from "../art/fallbacks";
 import { AvatarRenderer } from "./AvatarRenderer";
 
 export function VerdictView({
@@ -35,13 +34,7 @@ export function VerdictView({
             <div key={judge.id} className="card judge-card">
               <div className="judge-head">
                 <div className="judge-avatar-frame">
-                  {avatar ? (
-                    <AvatarRenderer avatar={avatar} speaking={false} size={64} maxHeight={64} />
-                  ) : (
-                    <div style={{ width: 56, height: 68 }}>
-                      <FbAvatar name={judge.name} />
-                    </div>
-                  )}
+                  <AvatarRenderer avatar={avatar} name={judge.name} speaking={false} size={64} maxHeight={64} />
                 </div>
                 <div>
                   <div className="judge-name">{judge.name}</div>

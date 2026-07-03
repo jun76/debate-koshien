@@ -113,10 +113,10 @@ try {
 
     $webExisting = Get-ComponentProcess "web" "dev:web"
     if ($webExisting) {
-        $web = Start-Component "web" "dev:web" (Get-ComponentUrl "web" "http://localhost:5173")
+        $web = Start-Component "web" "dev:web" (Get-ComponentUrl "web" "http://localhost:56173")
     }
     else {
-        $preferredWebPort = 5173
+        $preferredWebPort = 56173
         $webPort = Get-FreeTcpPort $preferredWebPort
         if ($webPort -ne $preferredWebPort) {
             Write-Host ("Port {0} is unavailable; using {1} for web." -f $preferredWebPort, $webPort) -ForegroundColor Yellow

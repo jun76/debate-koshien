@@ -289,7 +289,6 @@ export function FbAvatar({ name, speaking = false }: { name: string; speaking?: 
   let h = 0;
   for (const ch of name) h = (h * 31 + (ch.codePointAt(0) ?? 0)) >>> 0;
   const p = FB_AVATAR_PALETTES[h % FB_AVATAR_PALETTES.length];
-  const initials = [...name].slice(0, 2).join("");
   return (
     <svg viewBox="0 0 120 150" className={`fb-avatar ${speaking ? "speaking" : ""}`} style={{ width: "100%", height: "100%" }}>
       {/* 後ろ髪 */}
@@ -312,19 +311,6 @@ export function FbAvatar({ name, speaking = false }: { name: string; speaking?: 
       <circle cx="79" cy="86" r="4.4" fill="#f0b2a0" opacity="0.7" />
       {/* 口（speaking 中は CSS でぱくぱく） */}
       <ellipse className="fb-mouth" cx="60" cy="93" rx="6" ry="3" fill="#a05046" />
-      {/* 胸元の名札 */}
-      <rect x="38" y="124" width="44" height="18" rx="6" fill="#f3e3c2" stroke="#8a6a44" strokeWidth="2" />
-      <text
-        x="60"
-        y="137.5"
-        textAnchor="middle"
-        fontSize="11"
-        fontWeight="900"
-        fill="#4a3826"
-        fontFamily="'M PLUS Rounded 1c', sans-serif"
-      >
-        {initials}
-      </text>
     </svg>
   );
 }

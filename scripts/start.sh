@@ -25,7 +25,7 @@ start_component() {
 }
 
 start_component server dev:server "http://127.0.0.1:8787"
-start_component web dev:web "http://localhost:5173"
+start_component web dev:web "http://localhost:56173"
 
 echo ""
-echo "Open http://localhost:5173 in your browser. Run scripts/stop.sh to stop."
+echo "Open http://localhost:56173 in your browser. Run scripts/stop.sh to stop."

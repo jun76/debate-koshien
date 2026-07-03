@@ -1,21 +1,29 @@
 import { useEffect, useRef, useState } from "react";
 import type { AvatarInfo } from "@debate/shared";
+import { FbAvatar } from "../art/fallbacks";
 
 type Mouth = "closed" | "half" | "open";
+
+/** FbAvatar（フォールバック SVG）の viewBox 縦横比 */
+const FALLBACK_ASPECT = 120 / 150;
 
 /**
  * PuruPuru PNGTuber 形式のアバター素材を重ねて表示する軽量レンダラ。
  * 後ろ髪 → アイテム(faceBack) → 表情差分 → 前髪 → アイテム(frontHairFront) の順に合成し、
  * 自動まばたきと、speaking 中の口パクを行う。
+ * avatar が無い場合は同じサイズ計算でフォールバック SVG キャラを表示する。
  */
 export function AvatarRenderer({
   avatar,
+  name,
   speaking,
   active,
   size = 120,
   maxHeight,
 }: {
-  avatar: AvatarInfo;
+  avatar?: AvatarInfo;
+  /** フォールバック表示用の名前（配色と名札に使う） */
+  name?: string;
   speaking: boolean;
   active?: boolean;
   size?: number;
@@ -62,12 +70,31 @@ export function AvatarRenderer({
   }, []);
 
   const eyes = blink ? "closed" : "open";
-  const expression = avatar.layers.expressions[`eyes-${eyes}-mouth-${mouth}`];
-  const aspect = avatar.width > 0 && avatar.height > 0 ? avatar.width / avatar.height : 1;
+  const aspect = avatar
+    ? avatar.width > 0 && avatar.height > 0
+      ? avatar.width / avatar.height
+      : 1
+    : FALLBACK_ASPECT;
   const rawHeight = size / aspect;
   const fitScale = maxHeight && rawHeight > maxHeight ? maxHeight / rawHeight : 1;
   const displayWidth = size * fitScale;
   const displayHeight = rawHeight * fitScale;
+
+  if (!avatar) {
+    return (
+      <div
+        className={`avatar ${speaking ? "avatar-speaking" : ""} ${active ? "avatar-active" : ""}`}
+        style={{ width: displayWidth, height: displayHeight, position: "relative" }}
+        title={name}
+      >
+        <div className="avatar-inner">
+          <FbAvatar name={name ?? "？"} speaking={speaking} />
+        </div>
+      </div>
+    );
+  }
+
+  const expression = avatar.layers.expressions[`eyes-${eyes}-mouth-${mouth}`];
   const layerStyle: React.CSSProperties = {
     position: "absolute",
     inset: 0,

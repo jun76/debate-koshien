@@ -3,7 +3,6 @@ import { SIDE_LABEL } from "@debate/shared";
 import { Art } from "../art/Art";
 import {
   FbAudience,
-  FbAvatar,
   FbBackdrop,
   FbBunting,
   FbCurtain,
@@ -65,19 +64,14 @@ export function Stage({
             const solo = t.members.length === 1;
             return (
               <div key={m.id} className={`stage-member ${isSpeaking ? "speaking" : ""}`}>
-                {avatar ? (
-                  <AvatarRenderer
-                    avatar={avatar}
-                    speaking={isSpeaking}
-                    active={isSpeaking}
-                    size={isSpeaking || solo ? 190 : 140}
-                    maxHeight={isSpeaking || solo ? 230 : 175}
-                  />
-                ) : (
-                  <div className="avatar-placeholder" title={m.name}>
-                    <FbAvatar name={m.name} speaking={isSpeaking} />
-                  </div>
-                )}
+                <AvatarRenderer
+                  avatar={avatar}
+                  name={m.name}
+                  speaking={isSpeaking}
+                  active={isSpeaking}
+                  size={isSpeaking || solo ? 190 : 140}
+                  maxHeight={isSpeaking || solo ? 230 : 175}
+                />
               </div>
             );
           })}
@@ -184,13 +178,7 @@ export function Stage({
               const avatar = judge.avatarId ? avatars.get(judge.avatarId) : undefined;
               return (
                 <div key={judge.id} className="judge-seat" title={judge.name}>
-                  {avatar ? (
-                    <AvatarRenderer avatar={avatar} speaking={false} size={150} maxHeight={195} />
-                  ) : (
-                    <div className="avatar-placeholder small">
-                      <FbAvatar name={judge.name} />
-                    </div>
-                  )}
+                  <AvatarRenderer avatar={avatar} name={judge.name} speaking={false} size={150} maxHeight={195} />
                 </div>
               );
             })}

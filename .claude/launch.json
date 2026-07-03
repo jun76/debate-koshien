@@ -12,7 +12,7 @@
       "name": "web",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@debate/web", "dev"],
-      "port": 5173,
+      "port": 56173,
       "autoPort": true
     }
   ]

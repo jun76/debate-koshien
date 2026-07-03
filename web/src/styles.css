@@ -1026,15 +1026,7 @@ textarea {
   transform: translateY(-6px);
 }
 
-/* フォールバック SVG アバター（FbAvatar）の入れ物。サイズだけ与える */
-.avatar-placeholder {
-  width: 110px;
-  height: 130px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-}
-
+/* フォールバック SVG アバター（FbAvatar）。まばたきと口パクは CSS で行う */
 .fb-avatar .fb-eyes {
   transform-box: fill-box;
   transform-origin: center;
@@ -1180,11 +1172,6 @@ textarea {
 
 .judge-bench.count-5 .judge-seat {
   margin: 0 -42px;
-}
-
-.avatar-placeholder.small {
-  width: 70px;
-  height: 86px;
 }
 
 .topic-board {
@@ -1743,12 +1730,13 @@ textarea {
   color: var(--ink-soft);
 }
 
+/* ラベル（最長「否定第一反駁」11px×6字 ≈ 66px）が隣と被らない幅を確保する */
 .part-dot {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  width: 58px;
+  width: 78px;
   position: relative;
 }
 
@@ -1756,8 +1744,8 @@ textarea {
   content: "";
   position: absolute;
   top: 6px;
-  left: -22px;
-  width: 44px;
+  left: -32px;
+  width: 64px;
   height: 2px;
   background: rgba(138, 106, 68, 0.35);
   z-index: 0;
