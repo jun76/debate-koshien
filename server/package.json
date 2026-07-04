@@ -1,5 +1,5 @@
 {
-  "name": "@debate/server",
+  "name": "@debate-koshien/server",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,7 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@debate/shared": "workspace:*",
+    "@debate-koshien/shared": "workspace:*",
     "@hono/node-server": "^1.13.7",
     "hono": "^4.6.14"
   },

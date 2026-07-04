@@ -1,4 +1,4 @@
-import type { MatchConfig, Review } from "@debate/shared";
+import type { MatchConfig, Review } from "@debate-koshien/shared";
 import { useT } from "../i18n";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

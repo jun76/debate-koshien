@@ -1,4 +1,4 @@
-import type { Provider } from "@debate/shared";
+import type { Provider } from "@debate-koshien/shared";
 import type { Dict } from "./ja";
 
 /** English UI dictionary. Must structurally match the `Dict` type derived from the Japanese one. */

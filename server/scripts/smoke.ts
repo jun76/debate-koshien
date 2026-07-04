@@ -1,12 +1,12 @@
 /**
  * Smoke test for the real CLI adapters.
- *   pnpm --filter @debate/server exec tsx scripts/smoke.ts claude codex opencode
+ *   pnpm --filter @debate-koshien/server exec tsx scripts/smoke.ts claude codex opencode
  * Sends a simple instruction to each provider and prints the output and tool-usage history.
  */
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { Provider } from "@debate/shared";
+import type { Provider } from "@debate-koshien/shared";
 import { getAdapter } from "../src/adapters/index.js";
 
 const providers = (process.argv.slice(2).length ? process.argv.slice(2) : ["claude", "codex", "opencode"]) as Provider[];

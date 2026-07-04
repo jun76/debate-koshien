@@ -4,14 +4,14 @@
     {
       "name": "server",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@debate/server", "dev"],
+      "runtimeArgs": ["--filter", "@debate-koshien/server", "dev"],
       "port": 8787,
       "autoPort": false
     },
     {
       "name": "web",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@debate/web", "dev"],
+      "runtimeArgs": ["--filter", "@debate-koshien/web", "dev"],
       "port": 56173,
       "autoPort": true
     }

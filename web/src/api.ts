@@ -10,7 +10,7 @@ import type {
   MatchSummary,
   Provider,
   TeamKey,
-} from "@debate/shared";
+} from "@debate-koshien/shared";
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {

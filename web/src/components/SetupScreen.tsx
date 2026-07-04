@@ -1,6 +1,6 @@
 import { useState } from "react";
-import type { MatchSummary, Phase } from "@debate/shared";
-import { phaseLabel } from "@debate/shared";
+import type { MatchSummary, Phase } from "@debate-koshien/shared";
+import { phaseLabel } from "@debate-koshien/shared";
 import { Art } from "../art/Art";
 import { FbGavel, FbTrophy } from "../art/fallbacks";
 import { useAudio, useBgm } from "../audio";

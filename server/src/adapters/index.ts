@@ -1,4 +1,4 @@
-import type { Provider } from "@debate/shared";
+import type { Provider } from "@debate-koshien/shared";
 import { saveAgentLog } from "../store.js";
 import { ClaudeAdapter } from "./claude.js";
 import { CodexAdapter } from "./codex.js";

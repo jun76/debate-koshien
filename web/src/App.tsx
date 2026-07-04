@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { MatchSummary } from "@debate/shared";
+import type { MatchSummary } from "@debate-koshien/shared";
 import { deleteMatch, fetchMatches } from "./api";
 import { MatchContainer } from "./components/MatchContainer";
 import { SetupScreen } from "./components/SetupScreen";

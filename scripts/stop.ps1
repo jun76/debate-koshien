@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Stop the debate app started by scripts/start.ps1.
+    Stop the AI Debate Koshien app started by scripts/start.ps1.
 .DESCRIPTION
     Kills recorded process trees, then frees recorded workspace listeners as a fallback.
 #>

@@ -8,7 +8,7 @@ import {
   type Lang,
   type Side,
   type SpeechEvent,
-} from "@debate/shared";
+} from "@debate-koshien/shared";
 
 /** Stable marker separating the regenerate instruction from the previous draft (both languages). */
 export const PREVIOUS_DRAFT_MARKER = "<<<PREVIOUS_DRAFT>>>";

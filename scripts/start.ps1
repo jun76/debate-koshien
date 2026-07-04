@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Start the debate app (API server + web UI) in the background.
+    Start the AI Debate Koshien app (API server + web UI) in the background.
 .DESCRIPTION
     Launches both dev servers detached, writing PIDs and logs under .run/.
     Re-running is safe: components already running are skipped.

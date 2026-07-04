@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractCitations, getFormat, type EvidenceEntry } from "@debate/shared";
+import { extractCitations, getFormat, type EvidenceEntry } from "@debate-koshien/shared";
 import { checkSpeech, detectWebToolUsage, parseEvidence } from "../src/checks.js";
 
 const part = getFormat("koshien-high").parts[0]; // 1AC constructive, maxChars 2400

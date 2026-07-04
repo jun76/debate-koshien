@@ -6,7 +6,7 @@ import {
   type Lang,
   type Side,
   type SpeechWarning,
-} from "@debate/shared";
+} from "@debate-koshien/shared";
 import type { ToolUsageRecord } from "./adapters/types.js";
 import { serverStrings } from "./i18n.js";
 

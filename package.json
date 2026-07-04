@@ -7,8 +7,8 @@
   "scripts": {
     "start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start.ps1",
     "stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop.ps1",
-    "dev:server": "pnpm --filter @debate/server dev",
-    "dev:web": "pnpm --filter @debate/web dev",
+    "dev:server": "pnpm --filter @debate-koshien/server dev",
+    "dev:web": "pnpm --filter @debate-koshien/web dev",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"

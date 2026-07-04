@@ -1,4 +1,4 @@
-import { sideLabel, type Lang, type Provider, type Side } from "@debate/shared";
+import { sideLabel, type Lang, type Provider, type Side } from "@debate-koshien/shared";
 import type { SealDiff } from "./hash.js";
 
 /**

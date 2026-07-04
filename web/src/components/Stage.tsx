@@ -1,5 +1,5 @@
-import type { AgentConfig, AvatarInfo, MatchConfig, Side, TeamKey, ThinkingInfo } from "@debate/shared";
-import { sideLabel } from "@debate/shared";
+import type { AgentConfig, AvatarInfo, MatchConfig, Side, TeamKey, ThinkingInfo } from "@debate-koshien/shared";
+import { sideLabel } from "@debate-koshien/shared";
 import { useLang, useT } from "../i18n";
 import { Art } from "../art/Art";
 import {

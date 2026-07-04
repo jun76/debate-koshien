@@ -1,4 +1,4 @@
-import type { AgentConfig, FormatPart, Lang, Side, TeamKey } from "@debate/shared";
+import type { AgentConfig, FormatPart, Lang, Side, TeamKey } from "@debate-koshien/shared";
 
 export type InvocationKind =
   | "prep-research"

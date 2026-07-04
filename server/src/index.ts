@@ -15,7 +15,7 @@ import {
   type Provider,
   type TeamConfig,
   type TeamKey,
-} from "@debate/shared";
+} from "@debate-koshien/shared";
 import { listAvatars } from "./avatars.js";
 import { serverStrings, type ServerStrings } from "./i18n.js";
 import { ASSETS_DIR, DATA_DIR, WEB_DIST, matchPaths } from "./paths.js";

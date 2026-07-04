@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { AvatarInfo } from "@debate/shared";
+import type { AvatarInfo } from "@debate-koshien/shared";
 import { FbAvatar } from "../art/fallbacks";
 
 type Mouth = "closed" | "half" | "open";

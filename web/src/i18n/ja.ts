@@ -1,4 +1,4 @@
-import type { Provider, Side } from "@debate/shared";
+import type { Provider, Side } from "@debate-koshien/shared";
 
 /**
  * Japanese UI dictionary. This object's shape defines the `Dict` type that the English

@@ -1,5 +1,5 @@
-import type { AvatarInfo, MatchDetail, MatchEvent, ResultEvent } from "@debate/shared";
-import { sideLabel } from "@debate/shared";
+import type { AvatarInfo, MatchDetail, MatchEvent, ResultEvent } from "@debate-koshien/shared";
+import { sideLabel } from "@debate-koshien/shared";
 import { Art } from "../art/Art";
 import { FbConfetti, FbGavel, FbTrophy } from "../art/fallbacks";
 import { useLang, useT } from "../i18n";

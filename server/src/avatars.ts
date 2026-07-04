@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { AvatarInfo, AvatarItemLayer } from "@debate/shared";
+import type { AvatarInfo, AvatarItemLayer } from "@debate-koshien/shared";
 import { AVATARS_DIR } from "./paths.js";
 
 const EXPRESSION_FILES = [

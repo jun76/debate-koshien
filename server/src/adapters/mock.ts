@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { evidencePrefix, sideLabel, truncateChars, type Lang, type Side } from "@debate/shared";
+import { evidencePrefix, sideLabel, truncateChars, type Lang, type Side } from "@debate-koshien/shared";
 import { PREVIOUS_DRAFT_MARKER } from "../prompts.js";
 import type { AgentAdapter, AgentInvocation, AgentResult, MockHints } from "./types.js";
 

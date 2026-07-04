@@ -11,7 +11,7 @@ import type {
   TeamKey,
   ThinkingInfo,
   Verdict,
-} from "@debate/shared";
+} from "@debate-koshien/shared";
 import { DATA_DIR, matchDir, matchPaths } from "./paths.js";
 
 export function ensureDir(dir: string): void {

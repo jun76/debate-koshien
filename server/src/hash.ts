@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import type { Seal, SealManifestFile, TeamKey } from "@debate/shared";
+import type { Seal, SealManifestFile, TeamKey } from "@debate-koshien/shared";
 
 /** A single difference detected against a seal manifest. The caller localizes it for display. */
 export interface SealDiff {

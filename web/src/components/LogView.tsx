@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import type { AudioEvent, DeliberationEvent, MatchEvent, SpeechEvent, TeamKey } from "@debate/shared";
-import { sideLabel } from "@debate/shared";
+import type { AudioEvent, DeliberationEvent, MatchEvent, SpeechEvent, TeamKey } from "@debate-koshien/shared";
+import { sideLabel } from "@debate-koshien/shared";
 import { useLang, useT } from "../i18n";
 
 /** Render the speech, turning evidence-reference markers into clickable chips. */

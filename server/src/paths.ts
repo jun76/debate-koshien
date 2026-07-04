@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-/** Project root (debate/). */
+/** Project root (debate-koshien/). */
 export const ROOT = path.resolve(here, "..", "..");
 export const DATA_DIR = path.join(ROOT, "data", "matches");
 export const ASSETS_DIR = path.join(ROOT, "assets");

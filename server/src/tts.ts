@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { Lang } from "@debate/shared";
+import type { Lang } from "@debate-koshien/shared";
 import { execCommand } from "./exec.js";
 import { TTS_DIR } from "./paths.js";
 

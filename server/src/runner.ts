@@ -14,7 +14,7 @@ import {
   type SpeechEvent,
   type TeamKey,
   type Verdict,
-} from "@debate/shared";
+} from "@debate-koshien/shared";
 import { invokeAgent } from "./adapters/index.js";
 import { checkSpeech, detectWebToolUsage, parseEvidence } from "./checks.js";
 import { serverStrings } from "./i18n.js";

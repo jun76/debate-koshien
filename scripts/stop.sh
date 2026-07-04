@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stop the debate app started by scripts/start.sh.
+# Stop the AI Debate Koshien app started by scripts/start.sh.
 set -uo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"

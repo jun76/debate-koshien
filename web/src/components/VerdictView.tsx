@@ -1,5 +1,5 @@
-import type { AvatarInfo, MatchConfig, ResultEvent, Verdict } from "@debate/shared";
-import { sideLabel } from "@debate/shared";
+import type { AvatarInfo, MatchConfig, ResultEvent, Verdict } from "@debate-koshien/shared";
+import { sideLabel } from "@debate-koshien/shared";
 import { useLang, useT } from "../i18n";
 import { AvatarRenderer } from "./AvatarRenderer";
 

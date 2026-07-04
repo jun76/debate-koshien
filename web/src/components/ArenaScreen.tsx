@@ -11,8 +11,8 @@ import type {
   TeamKey,
   ThinkingInfo,
   VoteEvent,
-} from "@debate/shared";
-import { partLabel, partShortLabel, sideLabel, teamOfSide } from "@debate/shared";
+} from "@debate-koshien/shared";
+import { partLabel, partShortLabel, sideLabel, teamOfSide } from "@debate-koshien/shared";
 import { fetchFormats } from "../api";
 import { Art } from "../art/Art";
 import { FbGavel, FbMagnifier, FbPrepEnvelope, FbSealStamp } from "../art/fallbacks";

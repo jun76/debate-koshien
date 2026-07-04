@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import type { HandoutResponse, MatchConfig, TeamKey } from "@debate/shared";
-import { sideLabel, sideOfTeam } from "@debate/shared";
+import type { HandoutResponse, MatchConfig, TeamKey } from "@debate-koshien/shared";
+import { sideLabel, sideOfTeam } from "@debate-koshien/shared";
 import { fetchHandout } from "../api";
 import { useLang, useT } from "../i18n";
 

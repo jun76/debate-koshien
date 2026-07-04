@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { AvatarInfo, MatchDetail, MatchEvent, MatchState, SpeechEvent } from "@debate/shared";
-import { phaseLabel, sideLabel } from "@debate/shared";
+import type { AvatarInfo, MatchDetail, MatchEvent, MatchState, SpeechEvent } from "@debate-koshien/shared";
+import { phaseLabel, sideLabel } from "@debate-koshien/shared";
 import { abortMatch, fetchAvatars, startMatch, useLiveMatch } from "../api";
 import { useAudio } from "../audio";
 import { useLang, useT } from "../i18n";

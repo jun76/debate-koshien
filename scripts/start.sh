@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Start the debate app (API server + web UI) in the background.
+# Start the AI Debate Koshien app (API server + web UI) in the background.
 # PIDs and logs are written under .run/. Use scripts/stop.sh to stop.
 set -euo pipefail
 

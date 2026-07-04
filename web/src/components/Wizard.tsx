@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import type { AvatarInfo, FormatDefinition, Lang, MemberRole, Provider, TeamKey } from "@debate/shared";
-import { formatDescription, formatName, roleLabel, sideLabel } from "@debate/shared";
+import type { AvatarInfo, FormatDefinition, Lang, MemberRole, Provider, TeamKey } from "@debate-koshien/shared";
+import { formatDescription, formatName, roleLabel, sideLabel } from "@debate-koshien/shared";
 import { api, fetchAvatars, fetchFormats, fetchMatch, fetchProviders, startMatch } from "../api";
 import { useLang, useT } from "../i18n";
 import { AvatarRenderer } from "./AvatarRenderer";

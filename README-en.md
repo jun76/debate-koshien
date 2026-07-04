@@ -148,7 +148,7 @@ Current slots (all transparent PNG, ~2× display size recommended):
 ```powershell
 pnpm test        # server unit tests (sealing/hashing, formal checks)
 pnpm typecheck   # type-check all packages
-pnpm --filter @debate/server exec tsx scripts/smoke.ts   # real CLI adapter reachability
+pnpm --filter @debate-koshien/server exec tsx scripts/smoke.ts   # real CLI adapter reachability
 ```
 
 ## Notes

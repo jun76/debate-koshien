@@ -14,7 +14,7 @@ import {
   type Side,
   type SpeechEvent,
   type TeamKey,
-} from "@debate/shared";
+} from "@debate-koshien/shared";
 import { invokeAgent, type InvocationKind, type MockHints, type ToolUsageRecord } from "./adapters/index.js";
 import { parseEvidence } from "./checks.js";
 import { serverStrings } from "./i18n.js";

@@ -13,7 +13,7 @@ importers:
 
   server:
     dependencies:
-      '@debate/shared':
+      '@debate-koshien/shared':
         specifier: workspace:*
         version: link:../shared
       '@hono/node-server':
@@ -44,7 +44,7 @@ importers:
 
   web:
     dependencies:
-      '@debate/shared':
+      '@debate-koshien/shared':
         specifier: workspace:*
         version: link:../shared
       react:

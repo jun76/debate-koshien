@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { DEFAULT_LANG, LANG_LABEL, type Lang } from "@debate/shared";
+import { DEFAULT_LANG, LANG_LABEL, type Lang } from "@debate-koshien/shared";
 import { ja, type Dict } from "./ja";
 import { en } from "./en";
 
