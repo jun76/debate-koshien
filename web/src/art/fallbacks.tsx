@@ -306,18 +306,33 @@ export function FbAvatar({ name, speaking = false }: { name: string; speaking?: 
   let h = 0;
   for (const ch of name) h = (h * 31 + (ch.codePointAt(0) ?? 0)) >>> 0;
   const p = FB_AVATAR_PALETTES[h % FB_AVATAR_PALETTES.length];
+  // Two hairstyles for variety, picked deterministically from the name.
+  const long = (h >> 3) % 2 === 0;
   return (
     <svg viewBox="0 0 120 150" className={`fb-avatar ${speaking ? "speaking" : ""}`} style={{ width: "100%", height: "100%" }}>
-      {/* Back hair. */}
-      <ellipse cx="60" cy="70" rx="40" ry="38" fill={p.hair} />
+      {/* Back hair: long style falls past the shoulders; short style is a trimmed round cut. */}
+      {long ? (
+        <path
+          d="M28 62 Q26 30 60 28 Q94 30 92 62 L95 106 Q88 114 80 106 L78 74 Q60 82 42 74 L40 106 Q32 114 25 106 Z"
+          fill={p.hair}
+        />
+      ) : (
+        <ellipse cx="60" cy="60" rx="34" ry="31" fill={p.hair} />
+      )}
       {/* Body (shoulders raised and overlapped with the chin so the neck does not float). */}
       <path d="M22 150 Q24 104 60 100 Q96 104 98 150 Z" fill={p.cloth} stroke="#00000018" strokeWidth="2" />
-      {/* Collar. */}
-      <path d="M48 104 L60 118 L72 104" fill="none" stroke="#fffaf0" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+      {/* Crew-neck collar. */}
+      <path d="M50 102 Q60 111 70 102" fill="none" stroke="#fffaf0" strokeWidth="4" strokeLinecap="round" />
       {/* Face (drawn on top of the body). */}
       <circle cx="60" cy="74" r="30" fill="#f7e3cf" stroke="#00000010" strokeWidth="2" />
-      {/* Front hair. */}
-      <path d="M29 70 Q32 40 60 38 Q88 40 91 70 Q76 54 60 57 Q44 54 29 70 Z" fill={p.hair} />
+      {/* Wavy fringe that leaves the forehead visible. */}
+      <path
+        d="M31 64 Q31 38 60 36 Q89 38 89 64 Q83 50 74 58 Q69 45 58 53 Q48 45 42 59 Q35 52 31 64 Z"
+        fill={p.hair}
+      />
+      {/* Side strands framing the face. */}
+      <path d="M31 58 Q26 74 30 86 Q36 84 36 72 Q34 64 31 58 Z" fill={p.hair} />
+      <path d="M89 58 Q94 74 90 86 Q84 84 84 72 Q86 64 89 58 Z" fill={p.hair} />
       {/* Eyes (blink via CSS scaleY). */}
       <g className="fb-eyes">
         <circle cx="48" cy="77" r="3.6" fill="#4a3826" />

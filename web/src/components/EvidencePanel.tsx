@@ -35,12 +35,18 @@ export function EvidencePanel({
   }, [matchId, sealed.A, sealed.B]);
 
   // Clicking an evidence chip in the log switches the tab and scrolls to that entry.
+  // Switching and scrolling must happen on separate renders: right after setTab the other
+  // tab's list is not in the DOM yet, so scroll once the effect re-runs with the tab (and,
+  // if still loading, the handout data) in place.
   useEffect(() => {
     if (!selected) return;
-    setTab(selected.team);
+    if (tab !== selected.team) {
+      setTab(selected.team);
+      return;
+    }
     const el = document.getElementById(`evidence-${selected.team}-${selected.id}`);
     el?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [selected]);
+  }, [selected, tab, handouts]);
 
   const h = handouts[tab];
 

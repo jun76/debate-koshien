@@ -39,6 +39,46 @@ function replayPaceOf(ev: MatchEvent, prepPace: number): number {
   }
 }
 
+const CONFETTI_COLORS = ["#e9a93d", "#2e8073", "#bf4050", "#5b8fb9", "#8f6bb0", "#c47a3d"];
+
+/** Full-screen confetti rain shown when the view switches to the result screen. */
+function ConfettiRain({ trigger }: { trigger: number }) {
+  const pieces = useMemo(
+    () =>
+      Array.from({ length: 90 }, (_, i) => ({
+        left: Math.random() * 100,
+        delay: Math.random() * 1.4,
+        duration: 2.8 + Math.random() * 1.8,
+        drift: (Math.random() - 0.5) * 160,
+        spin: 360 + Math.random() * 720,
+        size: 7 + Math.random() * 6,
+        color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+      })),
+    // Regenerate a fresh burst each time the trigger increments.
+    [trigger],
+  );
+  if (trigger === 0) return null;
+  return (
+    <div className="confetti-rain" key={trigger} aria-hidden="true">
+      {pieces.map((p, i) => (
+        <i
+          key={i}
+          style={{
+            left: `${p.left}%`,
+            width: p.size,
+            height: p.size * 0.62,
+            background: p.color,
+            animationDuration: `${p.duration}s`,
+            animationDelay: `${p.delay}s`,
+            ["--drift" as string]: `${p.drift}px`,
+            ["--spin" as string]: `${p.spin}deg`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 /** Command center of the match screen: live subscription, cut-ins, arena/result switching. */
 export function MatchContainer({
   id,
@@ -65,7 +105,13 @@ export function MatchContainer({
   // True from the moment the user clicks "abort" until the phase actually settles. Abort takes
   // effect at the next step boundary (after the in-flight generation), so give immediate feedback.
   const [aborting, setAborting] = useState(false);
+  /** Incremented each time the result screen is entered; keys a fresh confetti burst. */
+  const [confettiBurst, setConfettiBurst] = useState(0);
   const { current: cutin, push } = useCutIns();
+
+  useEffect(() => {
+    if (view === "result") setConfettiBurst((c) => c + 1);
+  }, [view]);
 
   const baseline = useRef<number | null>(null);
   const processed = useRef(0);
@@ -272,9 +318,17 @@ export function MatchContainer({
   if (!detail) {
     return (
       <div className="center-state">
-        <div className="spinner" />
+        {!live.error && <div className="spinner" />}
         <p>{t.common.loadingMatch}</p>
-        {live.error && <div className="error-box">{live.error}</div>}
+        {live.error && (
+          <>
+            <div className="error-box">{live.error}</div>
+            {/* Loading can fail (e.g. HTTP 500); always give a way back to the lobby. */}
+            <button className="paper-btn" type="button" onClick={onExit}>
+              {t.header.back}
+            </button>
+          </>
+        )}
       </div>
     );
   }
@@ -412,6 +466,7 @@ export function MatchContainer({
       )}
 
       <CutInOverlay msg={cutin} />
+      <ConfettiRain trigger={confettiBurst} />
       {/* Slightly energize the whole page while a speaker is reading. */}
       <div className={`arena-vignette ${speaking ? "live" : ""}`} />
     </div>
