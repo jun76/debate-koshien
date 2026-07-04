@@ -589,15 +589,25 @@ button.mini:hover {
   display: grid;
   grid-template-columns: 280px 1fr;
   gap: 16px;
-  align-items: start;
+  /* 行の高さはウィザード列が決める（レール側は絶対配置で高さに寄与しない） */
+  align-items: stretch;
 }
 
 .ticket-rail {
+  position: relative;
+}
+
+/* レールの中身。ウィザード列の高さ（=開始ボタンの下端）に収め、超過分は縦スクロール */
+.ticket-rail-scroll {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  position: sticky;
-  top: 14px;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--kraft-deep) transparent;
 }
 
 .rail-title {
@@ -826,6 +836,27 @@ textarea {
 
 .member-model {
   width: 150px;
+}
+
+/* メンバーの詳細設定（名前・モデル・推論）の折りたたみ */
+.member-advanced {
+  width: 100%;
+}
+
+.member-advanced summary {
+  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  user-select: none;
+}
+
+.member-advanced .advanced-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 6px;
 }
 
 .avatar-picker {
@@ -2369,8 +2400,14 @@ details summary {
     grid-template-columns: 1fr;
   }
 
+  /* 1カラム時は絶対配置をやめ、高さ上限つきの通常フローに戻す */
   .ticket-rail {
     position: static;
+  }
+
+  .ticket-rail-scroll {
+    position: static;
+    max-height: 320px;
   }
 
   .watch-grid {

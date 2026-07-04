@@ -89,8 +89,8 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
   const [formatId, setFormatId] = useState("quick");
   const [affirmative, setAffirmative] = useState<"A" | "B" | "random">("A");
   const [teams, setTeams] = useState<Record<TeamKey, TeamForm>>(() => ({ A: newTeam(), B: newTeam() }));
-  const [judgeCount, setJudgeCount] = useState(3);
-  const [judges, setJudges] = useState<MemberForm[]>([newMember(), newMember(), newMember()]);
+  const [judgeCount, setJudgeCount] = useState(1);
+  const [judges, setJudges] = useState<MemberForm[]>([newMember()]);
   const [reviewer, setReviewer] = useState<MemberForm>(newMember());
   const [tts, setTts] = useState(true);
   const [demo, setDemo] = useState(false);
@@ -251,35 +251,13 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
     }
   };
 
+  // 普段の操作で必要なのはプロバイダとアバターだけ。名前・モデル・推論は折りたたみに隠す
   const memberEditor = (m: MemberForm, update: (m: MemberForm) => void, opts: { role?: boolean }) => (
     <div className={`member-row ${opts.role ? "with-role" : ""}`}>
-      <input
-        className="member-name"
-        placeholder={t.wizard.namePlaceholder}
-        value={m.name}
-        onChange={(e) => update({ ...m, name: e.target.value })}
-      />
       <select value={m.provider} onChange={(e) => update({ ...m, provider: e.target.value as Provider })}>
         {providers.map((p) => (
           <option key={p} value={p}>
             {t.common.providerLabels[p]}
-          </option>
-        ))}
-      </select>
-      <input
-        className="member-model"
-        placeholder={t.wizard.modelPlaceholder}
-        value={m.model}
-        onChange={(e) => update({ ...m, model: e.target.value })}
-      />
-      <select
-        value={m.reasoningEffort}
-        onChange={(e) => update({ ...m, reasoningEffort: e.target.value })}
-        title={t.wizard.reasoningTitle}
-      >
-        {EFFORTS.map((v) => (
-          <option key={v} value={v}>
-            {v || t.wizard.reasoningDefault}
           </option>
         ))}
       </select>
@@ -305,6 +283,34 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
           </button>
         ))}
       </div>
+      <details className="member-advanced">
+        <summary>{t.wizard.advanced}</summary>
+        <div className="advanced-fields">
+          <input
+            className="member-name"
+            placeholder={t.wizard.namePlaceholder}
+            value={m.name}
+            onChange={(e) => update({ ...m, name: e.target.value })}
+          />
+          <input
+            className="member-model"
+            placeholder={t.wizard.modelPlaceholder}
+            value={m.model}
+            onChange={(e) => update({ ...m, model: e.target.value })}
+          />
+          <select
+            value={m.reasoningEffort}
+            onChange={(e) => update({ ...m, reasoningEffort: e.target.value })}
+            title={t.wizard.reasoningTitle}
+          >
+            {EFFORTS.map((v) => (
+              <option key={v} value={v}>
+                {v || t.wizard.reasoningDefault}
+              </option>
+            ))}
+          </select>
+        </div>
+      </details>
     </div>
   );
 
@@ -313,9 +319,7 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
     return (
       <section className="card" key={key}>
         <h3 className="team-heading">
-          <span>
-            {t.wizard.teamName} {key}
-          </span>
+          <span>{t.wizard.teamHeading(key)}</span>
           {affirmative === key && <span className="side-chip aff">{sideLabel("affirmative", lang)}</span>}
           {affirmative !== key && affirmative !== "random" && (
             <span className="side-chip neg">{sideLabel("negative", lang)}</span>

@@ -108,6 +108,8 @@ export function SetupScreen({
 
       <div className="lobby-layout">
         <aside className="ticket-rail">
+          {/* レールの高さはウィザード列（開始ボタンの下端）に合わせ、超過分は内側でスクロールさせる */}
+          <div className="ticket-rail-scroll">
           <div className="rail-title">{t.lobby.pastMatches}</div>
           {matches.length === 0 && <div className="empty">{t.lobby.noMatches}</div>}
           {matches.map((m, i) => (
@@ -167,6 +169,7 @@ export function SetupScreen({
               <span className="ticket-date">{new Date(m.createdAt).toLocaleString(t.common.localeString)}</span>
             </div>
           ))}
+          </div>
         </aside>
 
         <div className="lobby-main">
