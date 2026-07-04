@@ -325,9 +325,9 @@ export function FbAvatar({ name, speaking = false }: { name: string; speaking?: 
       <path d="M50 102 Q60 111 70 102" fill="none" stroke="#fffaf0" strokeWidth="4" strokeLinecap="round" />
       {/* Face (drawn on top of the body). */}
       <circle cx="60" cy="74" r="30" fill="#f7e3cf" stroke="#00000010" strokeWidth="2" />
-      {/* Wavy fringe that leaves the forehead visible. */}
+      {/* M-shaped hairline: two arches with a soft center peak. */}
       <path
-        d="M31 64 Q31 38 60 36 Q89 38 89 64 Q83 50 74 58 Q69 45 58 53 Q48 45 42 59 Q35 52 31 64 Z"
+        d="M31 64 Q31 38 60 36 Q89 38 89 64 Q80 47 62 56 Q60 57 58 56 Q40 47 31 64 Z"
         fill={p.hair}
       />
       {/* Side strands framing the face. */}
