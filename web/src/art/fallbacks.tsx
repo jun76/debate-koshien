@@ -173,15 +173,18 @@ export function FbBackdrop() {
   );
 }
 
-/** Seal stamp. */
+/** Seal stamp (text-free wax-seal design so it reads in any language). */
 export function FbSealStamp() {
   return (
     <svg viewBox="0 0 120 120" style={{ width: "100%", height: "100%" }}>
       <circle cx="60" cy="60" r="54" fill="none" stroke="#bf4050" strokeWidth="6" />
       <circle cx="60" cy="60" r="44" fill="none" stroke="#bf4050" strokeWidth="2" {...stitch} />
-      <text x="60" y="76" textAnchor="middle" fontSize="42" fontWeight="900" fill="#bf4050" fontFamily="serif">
-        封
-      </text>
+      {/* 中央は文字ではなく星型の封蝋モチーフ */}
+      <path
+        d="M60 26 l8.2 16.6 18.3 2.7 -13.2 12.9 3.1 18.2 -16.4 -8.6 -16.4 8.6 3.1 -18.2 -13.2 -12.9 18.3 -2.7 Z"
+        fill="#bf4050"
+      />
+      <path d="M47 40 q6 -6 14 -5" stroke="#ffffff88" strokeWidth="3" fill="none" strokeLinecap="round" />
     </svg>
   );
 }
@@ -232,11 +235,11 @@ export function FbPrepEnvelope({ tone, sealed = false }: { tone: "aff" | "neg"; 
   const pale = tone === "aff" ? "#e9f4f0" : "#faeaea";
   return (
     <svg viewBox="0 0 220 150" style={{ width: "100%", height: "100%" }}>
-      {/* Envelope body (back). */}
-      <rect x="10" y="24" width="200" height="112" rx="10" fill="#e2cba0" />
-      <rect x="6" y="18" width="200" height="112" rx="10" fill="#fdf6e6" stroke="#8a6a44" strokeWidth="3" />
       {sealed ? (
         <>
+          {/* 封緘済み: 本体 + 閉じたフラップ + チームカラーの封蝋 */}
+          <rect x="10" y="24" width="200" height="112" rx="10" fill="#e2cba0" />
+          <rect x="6" y="18" width="200" height="112" rx="10" fill="#fdf6e6" stroke="#8a6a44" strokeWidth="3" />
           <path d="M10 124 L106 78 L202 124" fill="none" stroke="#d9c49a" strokeWidth="2.5" />
           <path d="M8 22 L106 86 L204 22 Z" fill={pale} stroke="#8a6a44" strokeWidth="3" strokeLinejoin="round" />
           <path
@@ -250,10 +253,14 @@ export function FbPrepEnvelope({ tone, sealed = false }: { tone: "aff" | "neg"; 
         </>
       ) : (
         <>
-          <path d="M12 126 L106 78 L200 126" fill="#fffaf0" stroke="#d9c49a" strokeWidth="2.5" />
-          <path d="M10 22 L106 74 L202 22" fill="none" stroke="#d9c49a" strokeWidth="2.5" />
-          <path d="M22 18 L106 4 L192 18 L106 70 Z" fill={pale} stroke="#8a6a44" strokeWidth="3" strokeLinejoin="round" />
-          <path d="M42 22 L106 12 L170 22" fill="none" stroke="#ffffff88" strokeWidth="3" strokeLinecap="round" />
+          {/* 作成中: フラップを起こした開封状態。フラップは本体の後ろに描き、
+              紙の裏面なので本体よりわずかに暗い無地にする */}
+          <path d="M10 62 L106 6 L202 62 Z" fill="#f1e3c6" stroke="#8a6a44" strokeWidth="3" strokeLinejoin="round" />
+          {/* 本体（手前） */}
+          <rect x="10" y="66" width="200" height="70" rx="10" fill="#e2cba0" />
+          <rect x="6" y="60" width="200" height="70" rx="10" fill="#fdf6e6" stroke="#8a6a44" strokeWidth="3" />
+          {/* 手前ポケットの折り目 */}
+          <path d="M12 126 L106 92 L200 126" fill="none" stroke="#d9c49a" strokeWidth="2.5" />
         </>
       )}
     </svg>
