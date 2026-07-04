@@ -7,11 +7,14 @@ import { TTS_DIR } from "./paths.js";
 /**
  * Speech synthesis via piper-plus.
  * Assumes assets/tts/piper/piper.exe plus a per-language voice model are provisioned by
- * scripts/setup-tts.ps1. Models live under assets/tts/models/<lang>/ (*.onnx + config). If a
- * given language is not provisioned, the app runs without audio for that language (degraded).
+ * scripts/setup-tts.ps1 / scripts/setup-tts.sh. Models live under assets/tts/models/<lang>/
+ * (*.onnx + config). If a given language is not provisioned, the app runs without audio for that
+ * language (degraded).
  */
 
-const PIPER_EXE = path.join(TTS_DIR, "piper", "piper.exe");
+const PIPER_EXE_CANDIDATES = process.platform === "win32"
+  ? [path.join(TTS_DIR, "piper", "piper.exe"), path.join(TTS_DIR, "piper", "bin", "piper")]
+  : [path.join(TTS_DIR, "piper", "bin", "piper"), path.join(TTS_DIR, "piper", "piper.exe")];
 const MODELS_ROOT = path.join(TTS_DIR, "models");
 const OPENJTALK_DIC = path.join(TTS_DIR, "piper", "share", "open_jtalk", "dic");
 // piper-plus の言語別 G2P 辞書（英語の CMU 辞書など）。この配置（piper/ 直下に exe と share/ が
@@ -36,6 +39,10 @@ function modelDirFor(lang: Lang): string {
   return langDir;
 }
 
+function resolvePiperExe(): string | null {
+  return PIPER_EXE_CANDIDATES.find((exe) => fs.existsSync(exe)) ?? null;
+}
+
 const cache = new Map<Lang, TtsPaths | null>();
 
 export function resolveTts(lang: Lang): TtsPaths | null {
@@ -44,7 +51,8 @@ export function resolveTts(lang: Lang): TtsPaths | null {
 
   let resolved: TtsPaths | null = null;
   const modelDir = modelDirFor(lang);
-  if (fs.existsSync(PIPER_EXE) && fs.existsSync(modelDir)) {
+  const exe = resolvePiperExe();
+  if (exe && fs.existsSync(modelDir)) {
     const onnx = fs.readdirSync(modelDir).find((f) => f.endsWith(".onnx"));
     if (onnx) {
       const model = path.join(modelDir, onnx);
@@ -54,7 +62,7 @@ export function resolveTts(lang: Lang): TtsPaths | null {
         path.join(modelDir, "config.json"),
       ];
       const config = configCandidates.find((f) => fs.existsSync(f));
-      resolved = { exe: PIPER_EXE, model, config };
+      resolved = { exe, model, config };
     }
   }
   cache.set(lang, resolved);
@@ -121,6 +129,10 @@ async function synthesize(text: string, wavPath: string, lang: Lang): Promise<nu
       PIPER_MODEL_DIR: path.dirname(tts.model),
       OPENJTALK_DICTIONARY_PATH: OPENJTALK_DIC,
       PIPER_DICTIONARIES_PATH: PIPER_DICTS,
+      LD_LIBRARY_PATH:
+        process.platform === "win32"
+          ? undefined
+          : `${path.join(TTS_DIR, "piper", "lib")}${process.env.LD_LIBRARY_PATH ? `:${process.env.LD_LIBRARY_PATH}` : ""}`,
     },
     timeoutMs: 120_000,
   });
