@@ -189,13 +189,23 @@ export function FbSealStamp() {
   );
 }
 
-/** Gavel (judging). */
+/** Gavel (judging): head with end caps and a handle, tilted mid-swing over a sound block. */
 export function FbGavel() {
   return (
     <svg viewBox="0 0 120 120" style={{ width: "100%", height: "100%" }}>
-      <rect x="18" y="70" width="72" height="14" rx="7" transform="rotate(-35 54 77)" fill="#8a6a44" />
-      <rect x="52" y="14" width="44" height="30" rx="8" transform="rotate(35 74 29)" fill="#a5825a" />
-      <rect x="10" y="96" width="60" height="12" rx="6" fill="#6f5436" />
+      {/* Sound block */}
+      <rect x="12" y="98" width="62" height="10" rx="5" fill="#6f5436" />
+      <rect x="20" y="90" width="46" height="10" rx="5" fill="#8a6a44" />
+      {/* Handle + head, tilted as one group */}
+      <g transform="rotate(-38 58 56)">
+        <rect x="54" y="40" width="9" height="50" rx="4.5" fill="#8a6a44" stroke="#6f5436" strokeWidth="2" />
+        <rect x="32" y="16" width="53" height="26" rx="11" fill="#a5825a" stroke="#6f5436" strokeWidth="2.5" />
+        <rect x="27" y="12" width="13" height="34" rx="6" fill="#6f5436" />
+        <rect x="77" y="12" width="13" height="34" rx="6" fill="#6f5436" />
+        <path d="M45 24 q9 -4 18 -2" stroke="#ffffff66" strokeWidth="3" fill="none" strokeLinecap="round" />
+      </g>
+      {/* Impact sparks */}
+      <path d="M74 76 l7 -7 M82 86 l9 -3 M66 70 l2 -9" stroke="#e9a93d" strokeWidth="3.5" strokeLinecap="round" />
     </svg>
   );
 }
