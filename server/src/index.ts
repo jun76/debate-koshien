@@ -81,6 +81,8 @@ interface CreateMatchPayload {
   lang?: Lang;
   tts?: boolean;
   autoAdvance?: boolean;
+  /** 旧名 demo。どちらのキーでも受け付ける */
+  exhibition?: boolean;
   demo?: boolean;
 }
 
@@ -146,6 +148,10 @@ app.post("/api/matches", async (c) => {
         : "B";
 
   const id = `m-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "")}-${randomUUID().slice(0, 6)}`;
+  // 旧クライアント/設定ファイルの "demo" も受け付ける
+  const exhibition = payload.exhibition ?? payload.demo ?? false;
+  // 感想戦の解説（コメンテーター）は審査員 1 が兼任する。旧クライアントの明示指定があればそちらを優先
+  const chief = payload.reviewer ?? payload.judges[0];
   const config: MatchConfig = {
     id,
     topic: payload.topic.trim(),
@@ -165,17 +171,17 @@ app.post("/api/matches", async (c) => {
     })),
     reviewer: {
       id: "reviewer",
-      name: payload.reviewer?.name?.trim() || t.defaultReviewerName(payload.reviewer?.provider ?? "mock"),
-      provider: payload.reviewer?.provider ?? "mock",
-      model: payload.reviewer?.model?.trim() || undefined,
-      reasoningEffort: payload.reviewer?.reasoningEffort?.trim() || undefined,
+      name: chief?.name?.trim() || t.defaultReviewerName(chief?.provider ?? "mock"),
+      provider: chief?.provider ?? "mock",
+      model: chief?.model?.trim() || undefined,
+      reasoningEffort: chief?.reasoningEffort?.trim() || undefined,
     },
     formatId: payload.formatId,
     lang,
     tts: (payload.tts ?? true) && ttsAvailable(lang),
-    // Demo mode is "generate everything, then play it all back", so it always auto-advances.
-    autoAdvance: payload.demo ? true : (payload.autoAdvance ?? true),
-    demo: payload.demo ?? false,
+    // Exhibition mode is "generate everything, then play it all back", so it always auto-advances.
+    autoAdvance: exhibition ? true : (payload.autoAdvance ?? true),
+    exhibition,
     limits: { prepMaxCalls: 12, fixRetries: 2, regenerateRetries: 1 },
   };
 

@@ -838,6 +838,13 @@ textarea {
   width: 150px;
 }
 
+/* 審査員カードの注記（審査員1がコメンテーター兼任） */
+.judges-note {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-bottom: 8px;
+}
+
 /* メンバーの詳細設定（名前・モデル・推論）の折りたたみ */
 .member-advanced {
   width: 100%;

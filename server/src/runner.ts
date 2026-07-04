@@ -47,7 +47,7 @@ interface Running {
 
 const running = new Map<string, Running>();
 
-/** Outstanding TTS jobs per match. Held so demo mode can wait for "all audio ready". */
+/** Outstanding TTS jobs per match. Held so exhibition mode can wait for "all audio ready". */
 const ttsJobs = new Map<string, Promise<void>[]>();
 
 export function isRunning(matchId: string): boolean {
@@ -628,8 +628,8 @@ async function runReview(config: MatchConfig, ctl: RunControl): Promise<void> {
 
   saveReview(config.id, review);
   appendEvent(config.id, { type: "review-ready" });
-  if (config.demo) {
-    // In demo mode, finished = "all playback material is ready". Wait for every audio job.
+  if (config.exhibition) {
+    // In exhibition mode, finished = "all playback material is ready". Wait for every audio job.
     setProgress(config.id, t.waitingAudio);
     await Promise.allSettled(ttsJobs.get(config.id) ?? []);
   }

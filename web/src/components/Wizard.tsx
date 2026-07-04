@@ -4,6 +4,7 @@ import { formatDescription, formatName, roleLabel, sideLabel } from "@debate/sha
 import { api, fetchAvatars, fetchFormats, fetchMatch, fetchProviders, startMatch } from "../api";
 import { useLang, useT } from "../i18n";
 import { AvatarRenderer } from "./AvatarRenderer";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 interface MemberForm {
   name: string;
@@ -44,9 +45,8 @@ interface WizardConfigFile {
   affirmative: "A" | "B" | "random";
   teams: Record<TeamKey, TeamForm>;
   judges: MemberForm[];
-  reviewer: MemberForm;
   tts: boolean;
-  demo: boolean;
+  exhibition: boolean;
 }
 
 function sanitizeMember(raw: unknown): MemberForm {
@@ -91,13 +91,14 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
   const [teams, setTeams] = useState<Record<TeamKey, TeamForm>>(() => ({ A: newTeam(), B: newTeam() }));
   const [judgeCount, setJudgeCount] = useState(1);
   const [judges, setJudges] = useState<MemberForm[]>([newMember()]);
-  const [reviewer, setReviewer] = useState<MemberForm>(newMember());
   const [tts, setTts] = useState(true);
-  const [demo, setDemo] = useState(false);
+  const [exhibition, setExhibition] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  /** Progress text shown while a demo match is being pre-generated (null when not generating). */
-  const [demoProgress, setDemoProgress] = useState<string | null>(null);
+  /** 全員 Mock で開始しようとしたときの確認モーダル */
+  const [mockConfirmOpen, setMockConfirmOpen] = useState(false);
+  /** Progress text shown while an exhibition match is being pre-generated (null when not generating). */
+  const [exhibitionProgress, setExhibitionProgress] = useState<string | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -133,9 +134,8 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
       affirmative,
       teams,
       judges,
-      reviewer,
       tts,
-      demo,
+      exhibition,
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
@@ -167,26 +167,40 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
       setJudges(importedJudges);
       setJudgeCount(importedJudges.length);
 
-      setReviewer(sanitizeMember(raw.reviewer));
       if (typeof raw.tts === "boolean") setTts(raw.tts && ttsAvailable);
-      if (typeof raw.demo === "boolean") setDemo(raw.demo);
+      // 旧形式（demo）の設定ファイルも受け付ける
+      const ex = typeof raw.exhibition === "boolean" ? raw.exhibition : typeof raw.demo === "boolean" ? raw.demo : undefined;
+      if (ex !== undefined) setExhibition(ex);
     } catch (e) {
       setError(t.wizard.configFileError(e instanceof Error ? e.message : String(e)));
     }
   };
 
-  /** Demo mode: wait until the server finishes all inference + audio (i.e. reaches "finished"). */
-  const waitForDemoReady = async (id: string) => {
+  /** Exhibition mode: wait until the server finishes all inference + audio (i.e. reaches "finished"). */
+  const waitForExhibitionReady = async (id: string) => {
     for (;;) {
       await new Promise((r) => setTimeout(r, 2000));
       const d = await fetchMatch(id);
       const phase = d.state.phase;
       if (phase === "finished") return;
       if (phase === "aborted" || phase === "error") {
-        throw new Error(d.state.error ?? t.wizard.demoInterrupted);
+        throw new Error(d.state.error ?? t.wizard.exhibitionInterrupted);
       }
-      setDemoProgress(d.state.progress?.trim() || t.wizard.generatingMatch);
+      setExhibitionProgress(d.state.progress?.trim() || t.wizard.generatingMatch);
     }
+  };
+
+  /** 全エージェント（メンバー + 審査員）が Mock かどうか */
+  const allMock =
+    [...teams.A.members, ...teams.B.members, ...judges].every((m) => m.provider === "mock");
+
+  /** 開始ボタン。全員 Mock のときは一度確認モーダルを挟む */
+  const requestSubmit = () => {
+    if (allMock) {
+      setMockConfirmOpen(true);
+      return;
+    }
+    void submit();
   };
 
   const submit = async () => {
@@ -200,7 +214,7 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
         lang,
         tts,
         autoAdvance: true,
-        demo,
+        exhibition,
         teams: Object.fromEntries(
           (Object.entries(teams) as [TeamKey, TeamForm][]).map(([key, t]) => [
             key,
@@ -229,17 +243,12 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
           reasoningEffort: j.reasoningEffort || undefined,
           avatarId: j.avatarId || undefined,
         })),
-        reviewer: {
-          provider: reviewer.provider,
-          model: reviewer.model || undefined,
-          reasoningEffort: reviewer.reasoningEffort || undefined,
-        },
       };
       const res = await api<{ id: string }>("/api/matches", { method: "POST", body: JSON.stringify(payload) });
       await startMatch(res.id);
-      if (demo) {
-        setDemoProgress(t.wizard.generatingMatch);
-        await waitForDemoReady(res.id);
+      if (exhibition) {
+        setExhibitionProgress(t.wizard.generatingMatch);
+        await waitForExhibitionReady(res.id);
         onCreated(res.id, { replay: true });
       } else {
         onCreated(res.id);
@@ -247,7 +256,7 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
     } catch (e) {
       setError(String(e instanceof Error ? e.message : e));
       setBusy(false);
-      setDemoProgress(null);
+      setExhibitionProgress(null);
     }
   };
 
@@ -447,6 +456,7 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
 
       <section className="card">
         <h3>{t.wizard.judgesHeading}</h3>
+        <div className="judges-note">{t.wizard.reviewerNote}</div>
         <div className="form-line">
           <label>{t.wizard.count}</label>
           <select value={judgeCount} onChange={(e) => setJudgeCountAndResize(Number(e.target.value))}>
@@ -468,11 +478,6 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
       </section>
 
       <section className="card">
-        <h3>{t.wizard.reviewerHeading}</h3>
-        {memberEditor(reviewer, setReviewer, {})}
-      </section>
-
-      <section className="card">
         <h3>{t.wizard.spectatorOptions}</h3>
         <div className="form-line">
           <label title={t.wizard.ttsTitle}>
@@ -482,25 +487,38 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
           </label>
         </div>
         <div className="form-line">
-          <label title={t.wizard.demoTitle}>
-            <input type="checkbox" checked={demo} disabled={busy} onChange={(e) => setDemo(e.target.checked)} />
-            {t.wizard.demoLabel}
+          <label title={t.wizard.exhibitionTitle}>
+            <input type="checkbox" checked={exhibition} disabled={busy} onChange={(e) => setExhibition(e.target.checked)} />
+            {t.wizard.exhibitionLabel}
           </label>
         </div>
       </section>
 
       {error && <div className="error-box">{error}</div>}
-      <button className="primary big" disabled={busy || !topic.trim()} onClick={submit}>
+      <button className="primary big" disabled={busy || !topic.trim()} onClick={requestSubmit}>
         {busy && <span className="btn-spinner" aria-hidden="true" />}
-        {demoProgress !== null
-          ? t.wizard.demoGenerating(demoProgress)
+        {exhibitionProgress !== null
+          ? t.wizard.exhibitionGenerating(exhibitionProgress)
           : busy
             ? t.wizard.creating
-            : demo
-              ? t.wizard.demoCreateStart
+            : exhibition
+              ? t.wizard.exhibitionCreateStart
               : t.wizard.createStart}
       </button>
-      {demoProgress !== null && <div className="demo-note">{t.wizard.demoNote}</div>}
+      {exhibitionProgress !== null && <div className="demo-note">{t.wizard.exhibitionNote}</div>}
+
+      <ConfirmDialog
+        open={mockConfirmOpen}
+        title={t.wizard.mockConfirmTitle}
+        message={t.wizard.mockConfirmMessage}
+        confirmLabel={t.wizard.mockConfirmProceed}
+        cancelLabel={t.common.cancel}
+        onConfirm={() => {
+          setMockConfirmOpen(false);
+          void submit();
+        }}
+        onCancel={() => setMockConfirmOpen(false)}
+      />
     </div>
   );
 }

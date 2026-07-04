@@ -33,7 +33,7 @@ evidence handling, rebuttal, comparative weighing, and judging.
 - Speakers are shown as PuruPuru-PNGTuber-style avatars (blink, lip-sync, breathing); if no
   avatar assets are installed, built-in SVG characters are used instead.
 - Optional **text-to-speech** via piper-plus + Tsukuyomi-chan, synced with the typewriter text.
-- **Demo mode**: run all inference and audio synthesis up front, then watch the whole match
+- **Exhibition mode**: run all inference and audio synthesis up front, then watch the whole match
   with no generation waits. Finished matches can be replayed the same way at any time.
 
 ## Requirements

@@ -14,7 +14,7 @@ type View = "arena" | "result";
 const REPLAY_PREP_BUDGET_MS = 6000;
 
 /**
- * Per-event-type presentation delay (ms) inserted during replay (demo mode).
+ * Per-event-type presentation delay (ms) inserted during replay (exhibition mode).
  * Every event is present from the start, so playing them straight through would look like a
  * fast slideshow. Speeches are paced by the typewriter/audio and phase/vote/result by the
  * cut-in (~1.9s), so we only add a pause for events that would otherwise feel abrupt.
@@ -344,7 +344,7 @@ export function MatchContainer({
               <span className={`phase-pill ${phaseTone(phase)}`}>{phaseLabel(phase, lang)}</span>
             )
           )}
-          {replaying && <span className="phase-pill idle">{t.header.demoPlayback}</span>}
+          {replaying && <span className="phase-pill idle">{t.header.exhibitionPlayback}</span>}
           {phase === "error" && (
             <button className="paper-btn" type="button" onClick={doStart}>
               {t.header.retry}
