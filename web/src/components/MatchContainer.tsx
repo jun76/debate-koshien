@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { AvatarInfo, MatchDetail, MatchEvent, MatchState, SpeechEvent } from "@debate/shared";
 import { phaseLabel, sideLabel } from "@debate/shared";
 import { abortMatch, fetchAvatars, startMatch, useLiveMatch } from "../api";
+import { useAudio } from "../audio";
 import { useLang, useT } from "../i18n";
 import { ArenaScreen } from "./ArenaScreen";
 import { CutInOverlay, useCutIns } from "./CutIn";
@@ -96,7 +97,7 @@ export function MatchContainer({
   const { lang } = useLang();
   const live = useLiveMatch(id);
   const [avatars, setAvatars] = useState<AvatarInfo[]>([]);
-  const [audioOn, setAudioOn] = useState(true);
+  const { audioOn, toggleAudio, setBgm } = useAudio();
   const [finishedIds, setFinishedIds] = useState<Set<string>>(new Set());
   const [displayEvents, setDisplayEvents] = useState<MatchEvent[]>([]);
   const [displayState, setDisplayState] = useState<MatchState | null>(null);
@@ -112,6 +113,11 @@ export function MatchContainer({
   useEffect(() => {
     if (view === "result") setConfettiBurst((c) => c + 1);
   }, [view]);
+
+  // Per-screen BGM: the arena and result views each have their own track.
+  useEffect(() => {
+    setBgm(view === "result" ? "result" : "arena");
+  }, [setBgm, view]);
 
   const baseline = useRef<number | null>(null);
   const processed = useRef(0);
@@ -418,7 +424,7 @@ export function MatchContainer({
             <button
               className={`paper-btn toggle-btn ${audioOn ? "on" : ""}`}
               type="button"
-              onClick={() => setAudioOn((v) => !v)}
+              onClick={toggleAudio}
               title={detail.ttsAvailable ? t.header.audioTitleAvailable : t.header.audioTitleUnavailable}
             >
               {audioOn ? t.header.audioOn : t.header.audioOff}

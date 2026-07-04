@@ -3,6 +3,7 @@ import type { MatchSummary, Phase } from "@debate/shared";
 import { phaseLabel } from "@debate/shared";
 import { Art } from "../art/Art";
 import { FbGavel, FbTrophy } from "../art/fallbacks";
+import { useAudio, useBgm } from "../audio";
 import { LanguageToggle, useLang, useT } from "../i18n";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Wizard } from "./Wizard";
@@ -71,6 +72,8 @@ export function SetupScreen({
 }) {
   const t = useT();
   const { lang } = useLang();
+  const { audioOn, toggleAudio } = useAudio();
+  useBgm("lobby");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   /** 削除確認モーダルの対象。null なら非表示 */
   const [pendingDelete, setPendingDelete] = useState<MatchSummary | null>(null);
@@ -88,6 +91,14 @@ export function SetupScreen({
   return (
     <div className="setup-screen">
       <div className="lobby-topbar">
+        <button
+          className={`paper-btn toggle-btn ${audioOn ? "on" : ""}`}
+          type="button"
+          onClick={toggleAudio}
+          title={t.header.audioTitleAvailable}
+        >
+          {audioOn ? t.header.audioOn : t.header.audioOff}
+        </button>
         <LanguageToggle />
       </div>
       <div className="lobby-title wobble-soft">

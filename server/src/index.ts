@@ -310,6 +310,7 @@ const MIME: Record<string, string> = {
   ".css": "text/css",
   ".html": "text/html; charset=utf-8",
   ".wav": "audio/wav",
+  ".mp3": "audio/mpeg",
   ".ico": "image/x-icon",
   ".md": "text/markdown; charset=utf-8",
 };

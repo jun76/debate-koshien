@@ -1,6 +1,9 @@
 docs/
 ref/
-assets/
+assets/*
+!assets/sounds/
+assets/sounds/*
+!assets/sounds/*.mp3
 node_modules/
 dist/
 data/

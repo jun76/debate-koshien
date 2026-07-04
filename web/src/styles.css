@@ -539,6 +539,8 @@ button.mini:hover {
 .lobby-topbar {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
 }
 
 .lang-toggle {
@@ -2047,6 +2049,8 @@ textarea {
   pointer-events: none;
   display: flex;
   align-items: center;
+  /* Center the band so its overhang extends equally past both screen edges. */
+  justify-content: center;
   background: rgba(74, 56, 38, 0.14);
   animation: cutinFade 0.25s ease both;
 }
@@ -2074,9 +2078,9 @@ textarea {
 }
 
 .cutin-band {
-  /* 回転させても帯の端が画面内に見えないよう、十分に長くとる */
-  width: 140%;
-  margin-left: -20%;
+  /* Long enough that neither end is visible on screen even when rotated. */
+  width: 160%;
+  flex: none;
   transform: rotate(-3deg);
   background: #fdf6e6;
   border-top: 4px solid var(--kraft-deep);
