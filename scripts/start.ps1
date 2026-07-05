@@ -18,27 +18,110 @@ New-Item -ItemType Directory -Force $runDir | Out-Null
 
 Push-Location $root
 try {
-    if ($Install -or -not (Test-Path (Join-Path $root "node_modules"))) {
-        Write-Host "Installing dependencies..." -ForegroundColor Cyan
-        pnpm install
+    function Test-TcpPortListening($port, $hostname = "127.0.0.1") {
+        $client = $null
+        $async = $null
+        try {
+            $client = [System.Net.Sockets.TcpClient]::new()
+            $async = $client.BeginConnect($hostname, $port, $null, $null)
+            if (-not $async.AsyncWaitHandle.WaitOne(250)) {
+                return $false
+            }
+            $client.EndConnect($async)
+            return $true
+        }
+        catch {
+            return $false
+        }
+        finally {
+            if ($async) {
+                $async.AsyncWaitHandle.Dispose()
+            }
+            if ($client) {
+                $client.Dispose()
+            }
+        }
     }
 
-    function Get-ComponentProcess($name, $script) {
+    function Ensure-DependenciesInstalled() {
+        $requiredPaths = @(
+            (Join-Path $root "node_modules"),
+            (Join-Path $root "server\node_modules\tsx\dist\cli.mjs"),
+            (Join-Path $root "web\node_modules\vite\bin\vite.js")
+        )
+        $missingPath = $requiredPaths | Where-Object { -not (Test-Path $_) } | Select-Object -First 1
+        if ($Install) {
+            Write-Host "Installing dependencies..." -ForegroundColor Cyan
+            pnpm install
+        }
+        elseif ($missingPath) {
+            $nodeModulesPresent = Test-Path (Join-Path $root "node_modules")
+            $packageNodeModulesPresent = (Test-Path (Join-Path $root "server\node_modules")) -or (Test-Path (Join-Path $root "web\node_modules"))
+            if ($nodeModulesPresent -or $packageNodeModulesPresent) {
+                Write-Host "Repairing broken dependencies..." -ForegroundColor Cyan
+                pnpm install --force
+            }
+            else {
+                Write-Host "Installing dependencies..." -ForegroundColor Cyan
+                pnpm install
+            }
+        }
+
+        $stillMissing = $requiredPaths | Where-Object { -not (Test-Path $_) } | Select-Object -First 1
+        if ($stillMissing) {
+            throw "Dependencies are not usable after install: $stillMissing"
+        }
+    }
+
+    function Get-LogExcerpt($logPath, $lineCount = 20) {
+        if (-not (Test-Path $logPath)) {
+            return "(log file not created yet)"
+        }
+        return ((Get-Content $logPath -Tail $lineCount -ErrorAction SilentlyContinue) -join [Environment]::NewLine)
+    }
+
+    function Wait-ComponentReady($name, $processId, $port, $logPath, $timeoutSeconds = 15, $hostname = "127.0.0.1") {
+        $deadline = (Get-Date).AddSeconds($timeoutSeconds)
+        while ((Get-Date) -lt $deadline) {
+            $proc = Get-Process -Id $processId -ErrorAction SilentlyContinue
+            if (-not $proc) {
+                $excerpt = Get-LogExcerpt $logPath
+                throw "$name failed to start. Last log lines:`n$excerpt"
+            }
+            if (Test-TcpPortListening $port $hostname) {
+                return
+            }
+            Start-Sleep -Milliseconds 250
+        }
+        $excerpt = Get-LogExcerpt $logPath
+        throw "$name did not become ready on ${hostname}:$port within $timeoutSeconds seconds. Last log lines:`n$excerpt"
+    }
+
+    Ensure-DependenciesInstalled
+
+    function Get-ComponentProcess($name, $script, $port = $null, $hostname = "127.0.0.1") {
         $pidFile = Join-Path $runDir "$name.pid"
         if (Test-Path $pidFile) {
             $old = (Get-Content -Raw $pidFile -ErrorAction SilentlyContinue).Trim()
             if ($old -match "^\d+$") {
                 $proc = Get-CimInstance Win32_Process -Filter "ProcessId=$old" -ErrorAction SilentlyContinue
                 if ($proc -and $proc.CommandLine -like "*pnpm $script*") {
-                    return $proc
+                    if ($null -eq $port -or (Test-TcpPortListening $port $hostname)) {
+                        return $proc
+                    }
+                    Write-Host "Ignoring stale $name PID $old (process is not accepting connections on ${hostname}:$port)." -ForegroundColor Yellow
                 }
-                if ($proc) {
+                elseif ($proc) {
                     Write-Host "Ignoring stale $name PID $old (process is not this app)." -ForegroundColor Yellow
                 }
             }
             Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
         }
         return $null
+    }
+
+    if ($false) {
+        Write-Host "Installing dependencies..." -ForegroundColor Cyan
     }
 
     function Get-ComponentUrl($name, $fallbackUrl) {
@@ -78,18 +161,18 @@ try {
         throw "No available TCP port found from $preferredPort to $($preferredPort + 99)."
     }
 
-    function Start-Component($name, $script, $url, $environment = @{}, $port = $null) {
-        $oldProc = Get-ComponentProcess $name $script
-        if ($oldProc) {
-            $currentUrl = Get-ComponentUrl $name $url
-            Write-Host ("{0} already running (PID {1}) -> {2}" -f $name, $oldProc.ProcessId, $currentUrl) -ForegroundColor Yellow
-            return [pscustomobject]@{ Url = $currentUrl; Started = $false; Pid = $oldProc.ProcessId }
-        }
-
+    function Start-Component($name, $script, $url, $environment = @{}, $port = $null, $hostname = "127.0.0.1") {
         $pidFile = Join-Path $runDir "$name.pid"
         $urlFile = Join-Path $runDir "$name.url"
         $portFile = Join-Path $runDir "$name.port"
         $log = Join-Path $runDir "$name.log"
+        $oldProc = Get-ComponentProcess $name $script $port $hostname
+        if ($oldProc) {
+            $url | Set-Content $urlFile
+            Write-Host ("{0} already running (PID {1}) -> {2}" -f $name, $oldProc.ProcessId, $url) -ForegroundColor Yellow
+            return [pscustomobject]@{ Url = $url; Started = $false; Pid = $oldProc.ProcessId; Log = $log }
+        }
+
         $commands = @()
         foreach ($key in ($environment.Keys | Sort-Object)) {
             $commands += ('set "{0}={1}"' -f $key, $environment[$key])
@@ -106,14 +189,16 @@ try {
             Remove-Item $portFile -Force -ErrorAction SilentlyContinue
         }
         Write-Host ("Started {0} (PID {1}) -> {2}   log: {3}" -f $name, $proc.Id, $url, $log) -ForegroundColor Green
-        return [pscustomobject]@{ Url = $url; Started = $true; Pid = $proc.Id }
+        return [pscustomobject]@{ Url = $url; Started = $true; Pid = $proc.Id; Log = $log }
     }
 
-    $server = Start-Component "server" "dev:server" "http://127.0.0.1:8787" @{} 8787
+    $server = Start-Component "server" "dev:server" "http://127.0.0.1:8787" @{} 8787 "127.0.0.1"
+    Wait-ComponentReady "server" $server.Pid 8787 $server.Log 15 "127.0.0.1"
 
-    $webExisting = Get-ComponentProcess "web" "dev:web"
+    $existingWebPort = if (Test-Path (Join-Path $runDir "web.port")) { [int](Get-Content -Raw (Join-Path $runDir "web.port")) } else { 56173 }
+    $webExisting = Get-ComponentProcess "web" "dev:web" $existingWebPort "localhost"
     if ($webExisting) {
-        $web = Start-Component "web" "dev:web" (Get-ComponentUrl "web" "http://localhost:56173")
+        $web = Start-Component "web" "dev:web" "http://localhost:$existingWebPort" @{ PORT = $existingWebPort } $existingWebPort "localhost"
     }
     else {
         $preferredWebPort = 56173
@@ -122,8 +207,10 @@ try {
             Write-Host ("Port {0} is unavailable; using {1} for web." -f $preferredWebPort, $webPort) -ForegroundColor Yellow
         }
         $webUrl = "http://localhost:$webPort"
-        $web = Start-Component "web" "dev:web" $webUrl @{ PORT = $webPort } $webPort
+        $web = Start-Component "web" "dev:web" $webUrl @{ PORT = $webPort } $webPort "localhost"
     }
+    $webPortToCheck = if (Test-Path (Join-Path $runDir "web.port")) { [int](Get-Content -Raw (Join-Path $runDir "web.port")) } else { 56173 }
+    Wait-ComponentReady "web" $web.Pid $webPortToCheck $web.Log 15 "localhost"
 
     Write-Host ("`nOpen {0} in your browser. Run scripts/stop.ps1 to stop." -f $web.Url) -ForegroundColor Cyan
 }
