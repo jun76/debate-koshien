@@ -4,20 +4,21 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$ttsDir = Join-Path $Root "assets\tts"
-$piperDir = Join-Path $ttsDir "piper"
-$modelDir = Join-Path $ttsDir "models"
-$tmpDir = Join-Path $ttsDir "_tmp"
+. (Join-Path $PSScriptRoot "runtime.ps1")
+
+$ttsDir = Join-Path $Root $RunSettings.Tts.Root
+$piperDir = Join-Path $ttsDir $RunSettings.Tts.PiperDir
+$modelDir = Join-Path $ttsDir $RunSettings.Tts.ModelsDir
+$tmpDir = Join-Path $ttsDir $RunSettings.Tts.TempDir
 
 New-Item -ItemType Directory -Force -Path $piperDir, $modelDir, $tmpDir | Out-Null
 
-$zip = Join-Path $tmpDir "piper-windows-x64.zip"
-$piperExe = Join-Path $piperDir "piper.exe"
+$zip = Join-Path $tmpDir $RunSettings.Tts.Windows.ArchiveName
+$piperExe = Join-Path $piperDir $RunSettings.Tts.Windows.BinaryName
 
 if (-not (Test-Path -LiteralPath $piperExe)) {
-  $url = "https://github.com/ayutaz/piper-plus/releases/latest/download/piper-windows-x64.zip"
   Write-Host "Downloading piper-plus..." -ForegroundColor Cyan
-  Invoke-WebRequest -Uri $url -OutFile $zip
+  Invoke-WebRequest -Uri $RunSettings.Tts.Windows.ArchiveUrl -OutFile $zip
 
   $extractDir = Join-Path $tmpDir "piper"
   if (Test-Path -LiteralPath $extractDir) {
@@ -25,7 +26,7 @@ if (-not (Test-Path -LiteralPath $piperExe)) {
   }
   Expand-Archive -LiteralPath $zip -DestinationPath $extractDir -Force
 
-  $found = Get-ChildItem -LiteralPath $extractDir -Recurse -Filter "piper.exe" | Select-Object -First 1
+  $found = Get-ChildItem -LiteralPath $extractDir -Recurse -Filter $RunSettings.Tts.Windows.BinaryName | Select-Object -First 1
   if (-not $found) {
     throw "piper.exe was not found in the downloaded archive."
   }
@@ -35,8 +36,8 @@ if (-not (Test-Path -LiteralPath $piperExe)) {
 
 $extractDir = Join-Path $tmpDir "piper"
 $shareSource = Get-ChildItem -LiteralPath $extractDir -Recurse -Directory -ErrorAction SilentlyContinue |
-  Where-Object { $_.FullName -match "\\share$" } |
-  Select-Object -First 1
+Where-Object { $_.FullName -match "\\share$" } |
+Select-Object -First 1
 if ($shareSource) {
   $shareDest = Join-Path $piperDir "share"
   New-Item -ItemType Directory -Force -Path $shareDest | Out-Null
@@ -44,37 +45,37 @@ if ($shareSource) {
 }
 
 # Voice models live under models/<lang>/. The server picks a model by the match's language.
-$jaDir = Join-Path $modelDir "ja"
-$enDir = Join-Path $modelDir "en"
+$jaDir = Join-Path $modelDir $RunSettings.Tts.Japanese.Language
+$enDir = Join-Path $modelDir $RunSettings.Tts.English.Language
 New-Item -ItemType Directory -Force -Path $jaDir, $enDir | Out-Null
 
 # Japanese: Tsukuyomi-chan (multilingual model).
-$jaModel = Join-Path $jaDir "tsukuyomi.onnx"
-$jaConfig = Join-Path $jaDir "config.json"
+$jaModel = Join-Path $jaDir $RunSettings.Tts.Japanese.ModelFile
+$jaConfig = Join-Path $jaDir $RunSettings.Tts.Japanese.ConfigFile
 if (-not (Test-Path -LiteralPath $jaModel)) {
   Write-Host "Downloading Japanese (Tsukuyomi) model..." -ForegroundColor Cyan
   Invoke-WebRequest `
-    -Uri "https://huggingface.co/ayousanz/piper-plus-tsukuyomi-chan/resolve/main/tsukuyomi-chan-6lang-fp16.onnx" `
+    -Uri $RunSettings.Tts.Japanese.ModelUrl `
     -OutFile $jaModel
 }
 if (-not (Test-Path -LiteralPath $jaConfig)) {
   Write-Host "Downloading Japanese (Tsukuyomi) config..." -ForegroundColor Cyan
   Invoke-WebRequest `
-    -Uri "https://huggingface.co/ayousanz/piper-plus-tsukuyomi-chan/resolve/main/config.json" `
+    -Uri $RunSettings.Tts.Japanese.ConfigUrl `
     -OutFile $jaConfig
 }
 
 # English: a standard piper en_US voice (config filename matches "<model>.onnx.json").
-$enModel = Join-Path $enDir "en_US-lessac-medium.onnx"
-$enConfig = Join-Path $enDir "en_US-lessac-medium.onnx.json"
-$enBase = "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium"
+$enModel = Join-Path $enDir $RunSettings.Tts.English.ModelFile
+$enConfig = Join-Path $enDir $RunSettings.Tts.English.ConfigFile
+$enBase = $RunSettings.Tts.English.BaseUrl
 if (-not (Test-Path -LiteralPath $enModel)) {
   Write-Host "Downloading English (en_US-lessac-medium) model..." -ForegroundColor Cyan
-  Invoke-WebRequest -Uri "$enBase/en_US-lessac-medium.onnx" -OutFile $enModel
+  Invoke-WebRequest -Uri "$enBase/$($RunSettings.Tts.English.ModelFile)" -OutFile $enModel
 }
 if (-not (Test-Path -LiteralPath $enConfig)) {
   Write-Host "Downloading English (en_US-lessac-medium) config..." -ForegroundColor Cyan
-  Invoke-WebRequest -Uri "$enBase/en_US-lessac-medium.onnx.json" -OutFile $enConfig
+  Invoke-WebRequest -Uri "$enBase/$($RunSettings.Tts.English.ConfigFile)" -OutFile $enConfig
 }
 
 $env:OPENJTALK_DICTIONARY_PATH = Join-Path $piperDir "share\open_jtalk\dic"
@@ -91,8 +92,8 @@ function Test-Synthesis($label, $model, $config, $text, $out) {
   }
 }
 
-$jaText = -join ([char[]](0x97F3, 0x58F0, 0x5408, 0x6210, 0x306E, 0x30C6, 0x30B9, 0x30C8, 0x3067, 0x3059, 0x3002))
-Test-Synthesis "Japanese" $jaModel $jaConfig $jaText (Join-Path $ttsDir "sample-ja.wav")
-Test-Synthesis "English" $enModel $enConfig "This is a synthesis test." (Join-Path $ttsDir "sample-en.wav")
+$jaText = $RunSettings.Tts.Japanese.SampleText
+Test-Synthesis $RunSettings.Tts.Japanese.Label $jaModel $jaConfig $jaText (Join-Path $ttsDir $RunSettings.Tts.Japanese.SampleFile)
+Test-Synthesis $RunSettings.Tts.English.Label $enModel $enConfig $RunSettings.Tts.English.SampleText (Join-Path $ttsDir $RunSettings.Tts.English.SampleFile)
 
 Write-Host "TTS is ready (ja + en): $ttsDir" -ForegroundColor Green

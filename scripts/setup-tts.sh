@@ -4,22 +4,24 @@ set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 
-tts_dir="$root/assets/tts"
-piper_dir="$tts_dir/piper"
-model_dir="$tts_dir/models"
-tmp_dir="$tts_dir/_tmp"
+# shellcheck disable=SC1091
+source "$root/scripts/runtime.sh"
+
+tts_dir="$root/$TTS_ROOT"
+piper_dir="$tts_dir/$TTS_PIPER_DIR"
+model_dir="$tts_dir/$TTS_MODELS_DIR"
+tmp_dir="$tts_dir/$TTS_TEMP_DIR"
 
 mkdir -p "$piper_dir" "$model_dir" "$tmp_dir"
 
-archive="$tmp_dir/piper-linux-x64.tar.gz"
+archive="$tmp_dir/$TTS_PIPER_LINUX_ARCHIVE_NAME"
 extract_dir="$tmp_dir/piper"
-piper_bin="$piper_dir/bin/piper"
+piper_bin="$piper_dir/$TTS_PIPER_LINUX_BINARY"
 
 if [ ! -x "$piper_bin" ]; then
-  url="https://github.com/ayutaz/piper-plus/releases/latest/download/piper-linux-x64.tar.gz"
   echo "Downloading piper-plus..."
   rm -rf "$extract_dir"
-  curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors -o "$archive" "$url"
+  curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors -o "$archive" "$TTS_PIPER_LINUX_ARCHIVE_URL"
   tar -xzf "$archive" -C "$tmp_dir"
 
   if [ ! -x "$extract_dir/bin/piper" ]; then
@@ -31,41 +33,41 @@ if [ ! -x "$piper_bin" ]; then
 fi
 
 # Voice models live under models/<lang>/. The server picks a model by the match's language.
-ja_dir="$model_dir/ja"
-en_dir="$model_dir/en"
+ja_dir="$model_dir/$TTS_JA_LANGUAGE"
+en_dir="$model_dir/$TTS_EN_LANGUAGE"
 mkdir -p "$ja_dir" "$en_dir"
 
 # Japanese: Tsukuyomi-chan (multilingual model).
-ja_model="$ja_dir/tsukuyomi.onnx"
-ja_config="$ja_dir/config.json"
+ja_model="$ja_dir/$TTS_JA_MODEL_FILE"
+ja_config="$ja_dir/$TTS_JA_CONFIG_FILE"
 if [ ! -f "$ja_model" ]; then
   echo "Downloading Japanese (Tsukuyomi) model..."
   curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors \
     -o "$ja_model" \
-    "https://huggingface.co/ayousanz/piper-plus-tsukuyomi-chan/resolve/main/tsukuyomi-chan-6lang-fp16.onnx"
+    "$TTS_JA_MODEL_URL"
 fi
 if [ ! -f "$ja_config" ]; then
   echo "Downloading Japanese (Tsukuyomi) config..."
   curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors \
     -o "$ja_config" \
-    "https://huggingface.co/ayousanz/piper-plus-tsukuyomi-chan/resolve/main/config.json"
+    "$TTS_JA_CONFIG_URL"
 fi
 
 # English: a standard piper en_US voice (config filename matches "<model>.onnx.json").
-en_model="$en_dir/en_US-lessac-medium.onnx"
-en_config="$en_dir/en_US-lessac-medium.onnx.json"
-en_base="https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium"
+en_model="$en_dir/$TTS_EN_MODEL_FILE"
+en_config="$en_dir/$TTS_EN_CONFIG_FILE"
+en_base="$TTS_EN_BASE_URL"
 if [ ! -f "$en_model" ]; then
   echo "Downloading English (en_US-lessac-medium) model..."
   curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors \
     -o "$en_model" \
-    "$en_base/en_US-lessac-medium.onnx"
+    "$en_base/$TTS_EN_MODEL_FILE"
 fi
 if [ ! -f "$en_config" ]; then
   echo "Downloading English (en_US-lessac-medium) config..."
   curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors \
     -o "$en_config" \
-    "$en_base/en_US-lessac-medium.onnx.json"
+    "$en_base/$TTS_EN_CONFIG_FILE"
 fi
 
 export OPENJTALK_DICTIONARY_PATH="$piper_dir/share/open_jtalk/dic"
@@ -85,8 +87,8 @@ test_synthesis() {
   fi
 }
 
-ja_text=$(printf '\343\201\260\345\243\260\345\220\210\346\210\220\343\201\256\343\203\206\343\202\271\343\203\210\343\201\247\343\201\231\343\202\202')
-test_synthesis "Japanese" "$ja_model" "$ja_config" "$ja_text" "$tts_dir/sample-ja.wav"
-test_synthesis "English" "$en_model" "$en_config" "This is a synthesis test." "$tts_dir/sample-en.wav"
+ja_text="$TTS_JA_SAMPLE_TEXT"
+test_synthesis "$TTS_JA_SAMPLE_LABEL" "$ja_model" "$ja_config" "$ja_text" "$tts_dir/$TTS_JA_SAMPLE_FILE"
+test_synthesis "$TTS_EN_SAMPLE_LABEL" "$en_model" "$en_config" "$TTS_EN_SAMPLE_TEXT" "$tts_dir/$TTS_EN_SAMPLE_FILE"
 
 echo "TTS is ready (ja + en): $tts_dir"

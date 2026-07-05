@@ -3,40 +3,89 @@
 .SYNOPSIS
     Stop the AI Debate Koshien app started by scripts/start.ps1.
 .DESCRIPTION
-    Kills recorded process trees, then frees recorded workspace listeners as a fallback.
+    Kills recorded process trees, matching WSL workspace processes, and workspace listeners.
 #>
 
 $ErrorActionPreference = "SilentlyContinue"
 $root = Split-Path -Parent $PSScriptRoot
 $runDir = Join-Path $root ".run"
+$repoName = Split-Path $root -Leaf
+. (Join-Path $PSScriptRoot "runtime.ps1")
 
-function Get-ComponentProcess($name, $script) {
+$serverMatchToken = $RunSettings.Server.MatchToken
+$webMatchToken = $RunSettings.Web.MatchToken
+$serverPort = [int]$RunSettings.Server.Port
+$defaultWebPort = [int]$RunSettings.Web.Port
+
+function Get-ComponentProcess($name, $matchToken) {
     $pidFile = Join-Path $runDir "$name.pid"
-    if (Test-Path $pidFile) {
-        $procId = (Get-Content -Raw $pidFile -ErrorAction SilentlyContinue).Trim()
-        if ($procId -match "^\d+$") {
-            $proc = Get-CimInstance Win32_Process -Filter "ProcessId=$procId" -ErrorAction SilentlyContinue
-            if ($proc -and $proc.CommandLine -like "*pnpm $script*") {
-                return $proc
-            }
-        }
+    if (-not (Test-Path $pidFile)) {
+        return $null
+    }
+
+    $procId = (Get-Content -Raw $pidFile -ErrorAction SilentlyContinue).Trim()
+    if ($procId -notmatch "^\d+$") {
+        return $null
+    }
+
+    $proc = Get-CimInstance Win32_Process -Filter "ProcessId=$procId" -ErrorAction SilentlyContinue
+    if ($proc -and $proc.CommandLine -like "*pnpm*$matchToken*") {
+        return $proc
     }
     return $null
 }
 
 function Remove-ComponentFiles($name) {
-    foreach ($suffix in "pid", "url", "port") {
+    foreach ($suffix in "pid", "url", "port", "log", "stdout.log", "stderr.log") {
         Remove-Item (Join-Path $runDir "$name.$suffix") -Force -ErrorAction SilentlyContinue
     }
 }
 
-function Stop-Component($name, $script) {
-    $proc = Get-ComponentProcess $name $script
+function Stop-Component($name, $matchToken) {
+    $proc = Get-ComponentProcess $name $matchToken
     if ($proc) {
         taskkill /PID $proc.ProcessId /T /F 2>$null | Out-Null
         Write-Host "Stopped $name (PID $($proc.ProcessId))"
     }
     Remove-ComponentFiles $name
+}
+
+function Get-WslCommand() {
+    return Get-Command "wsl.exe" -ErrorAction SilentlyContinue
+}
+
+function Get-WslPatterns($componentName) {
+    switch ($componentName) {
+        "server" {
+            return @(
+                "@$repoName/server dev",
+                "@$repoName/server start",
+                "$repoName/server/node_modules/.bin/.*/tsx/dist/cli.mjs watch --clear-screen=false src/index.ts",
+                "$repoName/server/node_modules/.bin/.*/tsx/dist/cli.mjs src/index.ts"
+            )
+        }
+        "web" {
+            return @(
+                "@$repoName/web dev",
+                "$repoName/web/node_modules/.bin/.*/vite"
+            )
+        }
+        default {
+            return @()
+        }
+    }
+}
+
+function Stop-WslWorkspaceComponent($componentName) {
+    if (-not (Get-WslCommand)) {
+        return
+    }
+    $patterns = Get-WslPatterns $componentName
+    if ($patterns.Count -eq 0) {
+        return
+    }
+    $commands = @($patterns | ForEach-Object { "pkill -f '$_' || true" })
+    & wsl.exe -e sh -lc ($commands -join "; ") 2>$null | Out-Null
 }
 
 function Test-IsWorkspaceProcess($proc) {
@@ -53,9 +102,6 @@ function Stop-WorkspaceListener($port) {
             taskkill /PID $_.OwningProcess /T /F 2>$null | Out-Null
             Write-Host "Stopped listener on port $port (PID $($_.OwningProcess))"
         }
-        else {
-            Write-Host "Skipped listener on port $port (PID $($_.OwningProcess)); it is not from this workspace." -ForegroundColor Yellow
-        }
     }
 }
 
@@ -68,16 +114,17 @@ if (Test-Path $webPortFile) {
     }
 }
 
-Stop-Component "server" "dev:server"
-Stop-Component "web" "dev:web"
+Stop-Component "server" $serverMatchToken
+Stop-Component "web" $webMatchToken
+Stop-WslWorkspaceComponent "server"
+Stop-WslWorkspaceComponent "web"
 
-# Fallback: free this workspace's listeners in case PIDs drifted.
-$ports = @(8787)
+$ports = @($serverPort)
 if ($recordedWebPort) {
     $ports += $recordedWebPort
 }
 else {
-    $ports += 56173
+    $ports += $defaultWebPort
 }
 
 $ports | Select-Object -Unique | ForEach-Object { Stop-WorkspaceListener $_ }
