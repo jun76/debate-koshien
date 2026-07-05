@@ -25,6 +25,7 @@ function readStoredAudioOn(): boolean {
 interface AudioContextValue {
   /** Master audio switch shared by BGM and TTS playback. */
   audioOn: boolean;
+  setAudioEnabled: (enabled: boolean) => void;
   toggleAudio: () => void;
   /** Select the BGM track for the current screen (null stops it). */
   setBgm: (track: BgmTrack | null) => void;
@@ -37,16 +38,18 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   const [track, setTrack] = useState<BgmTrack | null>(null);
   const elRef = useRef<HTMLAudioElement | null>(null);
 
-  const toggleAudio = useCallback(() => {
-    setAudioOn((v) => {
-      try {
-        localStorage.setItem(STORAGE_KEY, v ? "off" : "on");
-      } catch {
-        // Ignore storage failures; the toggle still applies this session.
-      }
-      return !v;
-    });
+  const setAudioEnabled = useCallback((enabled: boolean) => {
+    try {
+      localStorage.setItem(STORAGE_KEY, enabled ? "on" : "off");
+    } catch {
+      // Ignore storage failures; the preference still applies this session.
+    }
+    setAudioOn(enabled);
   }, []);
+
+  const toggleAudio = useCallback(() => {
+    setAudioEnabled(!audioOn);
+  }, [audioOn, setAudioEnabled]);
 
   const setBgm = useCallback((next: BgmTrack | null) => setTrack(next), []);
 
@@ -84,8 +87,8 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   }, [audioOn, track]);
 
   const value = useMemo<AudioContextValue>(
-    () => ({ audioOn, toggleAudio, setBgm }),
-    [audioOn, toggleAudio, setBgm],
+    () => ({ audioOn, setAudioEnabled, toggleAudio, setBgm }),
+    [audioOn, setAudioEnabled, toggleAudio, setBgm],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

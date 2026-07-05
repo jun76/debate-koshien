@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { MatchSummary, Phase } from "@debate-koshien/shared";
 import { phaseLabel } from "@debate-koshien/shared";
 import { Art } from "../art/Art";
@@ -7,6 +7,8 @@ import { useAudio, useBgm } from "../audio";
 import { LanguageToggle, useLang, useT } from "../i18n";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Wizard } from "./Wizard";
+
+let hasPromptedAudioThisPageLoad = false;
 
 export function phaseTone(phase: Phase): string {
   if (phase === "finished") return "done";
@@ -72,11 +74,18 @@ export function SetupScreen({
 }) {
   const t = useT();
   const { lang } = useLang();
-  const { audioOn, toggleAudio } = useAudio();
+  const { audioOn, toggleAudio, setAudioEnabled } = useAudio();
   useBgm("lobby");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   /** 削除確認モーダルの対象。null なら非表示 */
   const [pendingDelete, setPendingDelete] = useState<MatchSummary | null>(null);
+  const [audioPromptOpen, setAudioPromptOpen] = useState(false);
+
+  useEffect(() => {
+    if (hasPromptedAudioThisPageLoad) return;
+    hasPromptedAudioThisPageLoad = true;
+    setAudioPromptOpen(true);
+  }, []);
 
   const doDelete = async (match: MatchSummary) => {
     setDeletingId(match.id);
@@ -101,6 +110,23 @@ export function SetupScreen({
         </button>
         <LanguageToggle />
       </div>
+
+      <ConfirmDialog
+        open={audioPromptOpen}
+        title={t.lobby.audioPromptTitle}
+        message={t.lobby.audioPromptMessage}
+        confirmLabel={t.lobby.audioPromptOn}
+        cancelLabel={t.lobby.audioPromptOff}
+        onConfirm={() => {
+          setAudioEnabled(true);
+          setAudioPromptOpen(false);
+        }}
+        onCancel={() => {
+          setAudioEnabled(false);
+          setAudioPromptOpen(false);
+        }}
+      />
+
       <div className="lobby-title wobble-soft">
         <div className="lobby-deco left">
           <Art name="gavel" className="deco-art" fallback={<FbGavel />} />

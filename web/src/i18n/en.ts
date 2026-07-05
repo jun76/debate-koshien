@@ -23,6 +23,10 @@ export const en: Dict = {
     subtitle: "Research, evidence, rebuttal, judging — all agents",
     pastMatches: "Past matches",
     noMatches: "No matches yet",
+    audioPromptTitle: "Audio setting",
+    audioPromptMessage: "Play audio in the site?",
+    audioPromptOn: "Yes",
+    audioPromptOff: "No",
     deleteMatch: "Delete match",
     replayTitle: "Replay (watch from the start)",
     deleteConfirm: (topic: string) =>

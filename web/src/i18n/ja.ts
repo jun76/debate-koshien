@@ -25,6 +25,10 @@ export const ja = {
     subtitle: "調査・証拠・反駁・審査 — ぜんぶエージェント",
     pastMatches: "過去の試合",
     noMatches: "まだ試合はありません",
+    audioPromptTitle: "音声設定",
+    audioPromptMessage: "サイト内の音声を再生しますか？",
+    audioPromptOn: "はい",
+    audioPromptOff: "いいえ",
     deleteMatch: "試合を削除",
     replayTitle: "デモ再生（最初から観戦）",
     deleteConfirm: (topic: string) =>
