@@ -76,7 +76,13 @@ function sanitizeTeam(raw: unknown): TeamForm {
   };
 }
 
-export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?: boolean }) => void }) {
+export function Wizard({
+  onCreated,
+  onMatchesChanged,
+}: {
+  onCreated: (id: string, opts?: { replay?: boolean }) => void;
+  onMatchesChanged?: () => void;
+}) {
   const t = useT();
   const { lang } = useLang();
   const [formats, setFormats] = useState<FormatDefinition[]>([]);
@@ -245,6 +251,7 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
         })),
       };
       const res = await api<{ id: string }>("/api/matches", { method: "POST", body: JSON.stringify(payload) });
+      onMatchesChanged?.();
       await startMatch(res.id);
       if (exhibition) {
         setExhibitionProgress(t.wizard.generatingMatch);
@@ -254,6 +261,7 @@ export function Wizard({ onCreated }: { onCreated: (id: string, opts?: { replay?
         onCreated(res.id);
       }
     } catch (e) {
+      onMatchesChanged?.();
       setError(String(e instanceof Error ? e.message : e));
       setBusy(false);
       setExhibitionProgress(null);

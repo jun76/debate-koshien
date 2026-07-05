@@ -64,12 +64,14 @@ export function SetupScreen({
   onOpen,
   onDeleted,
   onCreated,
+  onMatchesChanged,
   loadError,
 }: {
   matches: MatchSummary[];
   onOpen: (id: string, opts?: { replay?: boolean }) => void;
   onDeleted: (id: string) => Promise<void>;
   onCreated: (id: string, opts?: { replay?: boolean }) => void;
+  onMatchesChanged?: () => void;
   loadError: string | null;
 }) {
   const t = useT();
@@ -210,7 +212,7 @@ export function SetupScreen({
         </aside>
 
         <div className="lobby-main">
-          <Wizard onCreated={onCreated} />
+          <Wizard onCreated={onCreated} onMatchesChanged={onMatchesChanged} />
         </div>
       </div>
 

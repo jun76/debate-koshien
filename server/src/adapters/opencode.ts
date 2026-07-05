@@ -4,11 +4,50 @@ import path from "node:path";
 import { execCommand, stripAnsi } from "../exec.js";
 import type { AgentAdapter, AgentInvocation, AgentResult } from "./types.js";
 
+function resolveOnPath(command: string): string | null {
+  const pathValue = process.env.PATH;
+  if (!pathValue) return null;
+  const dirs = pathValue.split(path.delimiter).filter(Boolean);
+  for (const dir of dirs) {
+    const candidate = path.join(dir, command);
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
 function opencodeExe(): string {
-  const appdata = process.env.APPDATA ?? path.join(os.homedir(), "AppData", "Roaming");
-  const exe = path.join(appdata, "npm", "node_modules", "opencode-ai", "bin", "opencode.exe");
-  if (fs.existsSync(exe)) return exe;
-  throw new Error(`opencode CLI not found: ${exe}`);
+  if (process.env.OPENCODE_PATH && fs.existsSync(process.env.OPENCODE_PATH)) {
+    return process.env.OPENCODE_PATH;
+  }
+
+  if (process.platform !== "win32") {
+    const pathCommand = resolveOnPath("opencode");
+    if (pathCommand) return pathCommand;
+    throw new Error("opencode CLI not found on PATH");
+  }
+
+  const username = os.userInfo().username;
+  const systemDrive = process.env.SystemDrive ?? "C:";
+
+  const candidates = [
+    process.env.APPDATA,
+    process.env.USERPROFILE ? path.join(process.env.USERPROFILE, "AppData", "Roaming") : undefined,
+    process.env.HOMEDRIVE && process.env.HOMEPATH
+      ? path.join(`${process.env.HOMEDRIVE}${process.env.HOMEPATH}`, "AppData", "Roaming")
+      : undefined,
+    path.join(systemDrive, "Users", username, "AppData", "Roaming"),
+    path.join(os.homedir(), "AppData", "Roaming"),
+  ].filter((value): value is string => Boolean(value));
+
+  for (const appdata of candidates) {
+    const exe = path.join(appdata, "npm", "node_modules", "opencode-ai", "bin", "opencode.exe");
+    if (fs.existsSync(exe)) return exe;
+  }
+
+  const windowsPathCommand = resolveOnPath("opencode.exe");
+  if (windowsPathCommand) return windowsPathCommand;
+
+  throw new Error(`opencode CLI not found: ${candidates.join(" | ")}`);
 }
 
 /**

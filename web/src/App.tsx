@@ -62,7 +62,14 @@ export function App() {
           onReplay={() => openMatch(matchId, { replay: true })}
         />
       ) : (
-        <SetupScreen matches={matches} onOpen={openMatch} onDeleted={removeMatch} onCreated={openMatch} loadError={loadError} />
+        <SetupScreen
+          matches={matches}
+          onOpen={openMatch}
+          onDeleted={removeMatch}
+          onCreated={openMatch}
+          onMatchesChanged={refreshMatches}
+          loadError={loadError}
+        />
       )}
     </div>
   );
