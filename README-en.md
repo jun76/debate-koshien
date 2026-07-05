@@ -68,7 +68,8 @@ pnpm install
 
 # Optional: download piper-plus + the Tsukuyomi-chan voice into assets/tts/
 # (the app runs fine without this — audio is simply disabled)
-.\scripts\setup-tts.ps1
+.\scripts\setup-tts.ps1   # Windows
+./scripts/setup-tts.sh     # Linux / macOS
 ```
 
 ## Start / Stop
@@ -172,5 +173,5 @@ This project builds on:
   Its demo avatar assets are governed by their own asset license (see `ASSET_LICENSE.md` in
   that repository).
 - [piper-plus](https://github.com/ayutaz/piper-plus) (MIT) — the text-to-speech engine
-  downloaded by `scripts/setup-tts.ps1`. The Tsukuyomi-chan voice model it fetches has its
-  own usage terms.
+  downloaded by `scripts/setup-tts.ps1` / `scripts/setup-tts.sh`. The Tsukuyomi-chan voice
+  model it fetches has its own usage terms.
