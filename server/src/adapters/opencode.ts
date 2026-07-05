@@ -74,6 +74,8 @@ export class OpenCodeAdapter implements AgentAdapter {
 
     const instructionsFile = path.join(inv.workspaceDir, "INSTRUCTIONS.md");
     fs.writeFileSync(instructionsFile, inv.instructions, "utf8");
+    const outputFile = path.join(inv.workspaceDir, "OUTPUT.md");
+    fs.rmSync(outputFile, { force: true });
 
     const args = [
       "run",
@@ -110,8 +112,11 @@ export class OpenCodeAdapter implements AgentAdapter {
       throw new Error(`opencode failed (exit ${res.code}): ${(stripAnsi(res.stderr) || output).slice(0, 500)}`);
     }
 
+    const fileOutput = fs.existsSync(outputFile) ? fs.readFileSync(outputFile, "utf8").trim() : "";
+    const finalOutput = fileOutput || output;
+
     return {
-      output,
+      output: finalOutput,
       // opencode does not return a machine-readable tool-usage history, so the permission config
       // (webfetch deny) is what enforces the web ban.
       toolUsage: [],
